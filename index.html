@@ -77,10 +77,6 @@
   .lesson-row .s{font-size:13px; color:var(--sub);}
   .kana-hero{font-size:96px; line-height:1.1; text-align:center; margin:4px 0;}
   .romaji-hero{text-align:center; font-size:26px; font-weight:700; color:var(--red); margin-bottom:4px;}
-  .mnemonic{
-    background:#fff8e8; border:1px dashed var(--gold); border-radius:12px;
-    padding:10px 14px; font-size:15px; margin:10px 0;
-  }
   canvas.trace{
     display:block; margin:10px auto; background:#fff; border:2px dashed var(--line);
     border-radius:14px; touch-action:none; cursor:crosshair;
@@ -127,16 +123,27 @@
     padding:10px 14px; margin:10px 0; font-size:16px;
   }
   .pron-nota{font-size:13px; color:var(--sub); margin-top:3px; line-height:1.35;}
-  .ejemplo{
-    background:#eef7ee; border:1px solid #bcdcbc; border-radius:12px;
-    padding:10px 14px; margin:10px 0; text-align:left; font-size:16px;
-  }
-  .ej-lbl{font-size:12px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;}
   .ej-jp{font-size:24px; font-weight:700;}
   .solo{
-    background:#f4eefa; border:1px dashed #a98fc4; border-radius:12px;
-    padding:9px 14px; margin:10px 0; text-align:left; font-size:14px; line-height:1.4;
+    background:#f4eefa; border:1px dashed #a98fc4; border-radius:10px;
+    padding:8px 12px; margin-top:10px; font-size:14px; line-height:1.4;
   }
+  /* Secciones desplegables */
+  details.fold{border-radius:12px; margin:8px 0; text-align:left; overflow:hidden;}
+  details.fold > summary{
+    cursor:pointer; padding:10px 14px; font-size:14px; font-weight:700;
+    list-style:none; user-select:none; display:flex; align-items:center; gap:6px;
+  }
+  details.fold > summary::-webkit-details-marker{display:none;}
+  details.fold > summary::after{
+    content:"▾"; margin-left:auto; font-size:13px; color:var(--sub);
+    transition:transform .2s;
+  }
+  details.fold[open] > summary::after{transform:rotate(180deg);}
+  details.fold .fold-body{padding:0 14px 12px; font-size:16px; line-height:1.45;}
+  details.fold.truco{background:#fff8e8; border:1px dashed var(--gold);}
+  details.fold.palabra{background:#eef7ee; border:1px solid #bcdcbc;}
+  details.fold > summary .hint{font-weight:400; color:var(--sub); font-size:13px;}
   .spk{
     flex:none; width:46px; height:46px; border-radius:50%; cursor:pointer;
     border:none; background:var(--red); color:#fff; font-size:21px;
@@ -487,24 +494,45 @@ const KANA_PARTICULA = {
   "も":"Como partícula significa «también»."
 };
 
-// Palabra de ejemplo + aviso si el kana solo ya es palabra o partícula
-function bloqueSignificado(kana){
-  let h = "";
+// Palabra de ejemplo + aviso si el kana solo ya es palabra o partícula.
+// Va en un desplegable; `abierto` fuerza que se muestre ya expandido.
+function bloqueSignificado(kana, abierto){
   const e = EJEMPLO[kana];
-  if(e){
-    h += '<div class="ejemplo">'+
-         '<div class="ej-lbl">📖 Palabra de ejemplo</div>'+
-         '<div><span class="jp ej-jp">'+e[0]+'</span> '+
-         '<span class="muted">('+esc(e[1])+')</span> — <b>'+esc(e[2])+'</b></div></div>';
-  }
   const s = KANA_SOLA[kana], p = KANA_PARTICULA[kana];
-  if(s || p){
-    h += '<div class="solo">✨ <b class="jp">'+kana+'</b> por sí sola'+
-         (s ? ' ya es una palabra: <b>'+esc(s)+'</b>' : '')+
-         (s && p ? '<br>' : '')+
-         (p ? (s?'':' ')+esc(p) : '')+'</div>';
+  if(!e && !s && !p) return "";
+
+  let cuerpo = "";
+  if(e){
+    cuerpo += '<div><span class="jp ej-jp">'+e[0]+'</span> '+
+              '<span class="muted">('+esc(e[1])+')</span> — <b>'+esc(e[2])+'</b></div>';
   }
-  return h;
+  if(s || p){
+    cuerpo += '<div class="solo">✨ <b class="jp">'+kana+'</b> por sí sola'+
+              (s ? ' ya es una palabra: <b>'+esc(s)+'</b>' : '')+
+              (s && p ? '<br>' : '')+
+              (p ? (s?'':' ')+esc(p) : '')+'</div>';
+  }
+  const open = (abierto || state.verPalabra) ? " open" : "";
+  return '<details class="fold palabra"'+open+' ontoggle="recordarFold(\'verPalabra\',this.open)">'+
+    '<summary>📖 Palabra de ejemplo'+
+      (e ? ' <span class="hint">'+esc(e[2])+'</span>' : '')+
+    '</summary>'+
+    '<div class="fold-body">'+cuerpo+'</div></details>';
+}
+
+// Truco visual para acordarse del trazo, también desplegable.
+function bloqueTruco(texto){
+  const open = state.verTruco ? " open" : "";
+  return '<details class="fold truco"'+open+' ontoggle="recordarFold(\'verTruco\',this.open)">'+
+    '<summary>🧠 Truco para el trazo</summary>'+
+    '<div class="fold-body">'+esc(texto)+'</div></details>';
+}
+
+// Recuerda si dejaste abierto cada desplegable, para no clickear en cada letra
+function recordarFold(clave, abierto){
+  if(state[clave] === abierto) return;
+  state[clave] = abierto;
+  save();
 }
 
 /* ===== PRONUNCIACIÓN =====
@@ -641,7 +669,9 @@ let state = {
   srs:{},              // itemId -> {t:'k'|'w', box:n, due:timestamp}
   streak:0, lastStreakDay:null,
   xpDay:null, xpToday:0, totalXp:0,
-  strict:false         // modo estricto del trazado
+  strict:false,        // modo estricto del trazado
+  verTruco:false,      // desplegables: se recuerda si los dejaste abiertos
+  verPalabra:false
 };
 
 function save(){ try{ localStorage.setItem("nihongoState", JSON.stringify(state)); }catch(e){} }
@@ -809,8 +839,8 @@ function renderTeach(){
     html += '<div class="card">'+
       '<div class="kana-hero jp">'+it[0]+'</div>'+
       '<div class="romaji-hero">'+esc(it[1])+'</div>'+
-      '<div class="mnemonic"><b>🧠 Truco para el trazo:</b> '+esc(it[2])+'</div>'+
       bloquePronunciacion(it[0], it[0], it[1])+
+      bloqueTruco(it[2])+
       bloqueSignificado(it[0])+
       '<div class="center muted">✍️ Practica trazándolo encima de la guía'+
         (need!==null ? ' — son <b>'+need+' trazo'+(need===1?"":"s")+'</b>' : '')+':</div>'+
@@ -1220,7 +1250,7 @@ function checkTrace(){
     drawGuide();
     redrawInk();
     const rev = document.getElementById("revelado");
-    if(rev) rev.innerHTML = bloqueSignificado(traceChar);
+    if(rev) rev.innerHTML = bloqueSignificado(traceChar, true);
     if(formaOk && trazosOk && !pracScored){
       pracScored = true;
       addXp(XP_REVIEW);
