@@ -1,0 +1,17 @@
+{
+  "name": "日本語 · Aprende Japonés",
+  "short_name": "日本語",
+  "description": "Aprende hiragana, katakana y vocabulario japonés desde cero, con rachas y repaso espaciado.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf6ef",
+  "theme_color": "#c93b3b",
+  "lang": "es",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

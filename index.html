@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本語 · Aprende Japonés</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🌸</text></svg>">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#c93b3b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="日本語">
+<style>
+  :root{
+    --bg:#faf6ef; --card:#ffffff; --ink:#3a3226; --sub:#8a8070;
+    --red:#c93b3b; --red-dark:#a52f2f; --gold:#e0a52e; --green:#4e9a51;
+    --line:#e8e0d0; --locked:#d8d0c0; --shadow:0 2px 8px rgba(90,70,40,.10);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+    font-size:17px; line-height:1.45;
+  }
+  .jp{font-family:"Yu Gothic","Yu Mincho","Meiryo","MS Gothic",sans-serif;}
+  #app{max-width:560px; margin:0 auto; padding:14px 14px 60px;}
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 2px 12px; gap:8px;
+  }
+  header h1{font-size:20px; margin:0; letter-spacing:.5px;}
+  .stats{display:flex; gap:10px; align-items:center; font-weight:600;}
+  .pill{
+    background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:4px 12px; box-shadow:var(--shadow); font-size:15px; white-space:nowrap;
+  }
+  .pill.hot{border-color:var(--gold); background:#fff8e8;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:16px; margin:12px 0; box-shadow:var(--shadow);
+  }
+  .btn{
+    display:inline-block; border:none; border-radius:14px; cursor:pointer;
+    background:var(--red); color:#fff; font-size:17px; font-weight:700;
+    padding:12px 22px; box-shadow:0 3px 0 var(--red-dark);
+    transition:transform .05s;
+  }
+  .btn:active{transform:translateY(2px); box-shadow:0 1px 0 var(--red-dark);}
+  .btn.sec{background:#fff; color:var(--ink); border:2px solid var(--line); box-shadow:0 3px 0 var(--line);}
+  .btn.green{background:var(--green); box-shadow:0 3px 0 #3c7a3f;}
+  .btn.big{width:100%; padding:15px; font-size:18px;}
+  .btn:disabled{background:var(--locked); box-shadow:0 3px 0 #c4bcac; cursor:default; color:#fff;}
+  .muted{color:var(--sub); font-size:14px;}
+  .center{text-align:center;}
+  .goalbar{height:12px; background:#efe8da; border-radius:8px; overflow:hidden; margin-top:8px;}
+  .goalbar>div{height:100%; background:linear-gradient(90deg,var(--gold),#f0c060); border-radius:8px; transition:width .3s;}
+  .section-title{
+    margin:22px 4px 6px; font-size:15px; font-weight:700; color:var(--sub);
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .lesson-row{
+    display:flex; align-items:center; gap:12px; background:var(--card);
+    border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+    margin:8px 0; cursor:pointer; box-shadow:var(--shadow);
+  }
+  .lesson-row.locked{opacity:.55; cursor:default;}
+  .lesson-row .badge{
+    width:44px; height:44px; border-radius:12px; flex:none;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:700; color:#fff; background:var(--red);
+  }
+  .lesson-row.done .badge{background:var(--green);}
+  .lesson-row.locked .badge{background:var(--locked);}
+  .lesson-row .t{font-weight:700;}
+  .lesson-row .s{font-size:13px; color:var(--sub);}
+  .kana-hero{font-size:96px; line-height:1.1; text-align:center; margin:4px 0;}
+  .romaji-hero{text-align:center; font-size:26px; font-weight:700; color:var(--red); margin-bottom:4px;}
+  .mnemonic{
+    background:#fff8e8; border:1px dashed var(--gold); border-radius:12px;
+    padding:10px 14px; font-size:15px; margin:10px 0;
+  }
+  canvas.trace{
+    display:block; margin:10px auto; background:#fff; border:2px dashed var(--line);
+    border-radius:14px; touch-action:none; cursor:crosshair;
+  }
+  .options{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .opt{
+    background:#fff; border:2px solid var(--line); border-radius:14px;
+    padding:14px 8px; font-size:22px; font-weight:700; text-align:center;
+    cursor:pointer; box-shadow:0 3px 0 var(--line); transition:transform .05s;
+  }
+  .opt:active{transform:translateY(2px); box-shadow:0 1px 0 var(--line);}
+  .opt.good{border-color:var(--green); background:#eef7ee; box-shadow:0 3px 0 var(--green);}
+  .opt.bad{border-color:var(--red); background:#fdecec; box-shadow:0 3px 0 var(--red);}
+  .opt.small{font-size:16px; font-weight:600;}
+  .qbar{height:10px; background:#efe8da; border-radius:8px; overflow:hidden; margin-bottom:14px;}
+  .qbar>div{height:100%; background:var(--green); transition:width .3s;}
+  .feedback{margin-top:12px; font-weight:700; font-size:17px; min-height:26px;}
+  .feedback.ok{color:var(--green);}
+  .feedback.no{color:var(--red);}
+  .topnav{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .backbtn{
+    background:none; border:none; font-size:26px; cursor:pointer; color:var(--sub);
+    padding:2px 8px; border-radius:8px;
+  }
+  .backbtn:hover{background:#f0e9db;}
+  table.chart{border-collapse:collapse; width:100%;}
+  table.chart td{
+    border:1px solid var(--line); text-align:center; padding:7px 2px;
+    font-size:20px; background:#fff; border-radius:4px;
+  }
+  table.chart td small{display:block; color:var(--sub); font-size:11px;}
+  .tabs{display:flex; gap:8px; margin:10px 0;}
+  .tab{
+    flex:1; text-align:center; padding:9px; border-radius:12px; font-weight:700;
+    background:#fff; border:2px solid var(--line); cursor:pointer;
+  }
+  .tab.on{background:var(--red); color:#fff; border-color:var(--red);}
+  .bigmsg{font-size:42px; text-align:center; margin:10px 0;}
+  .note{background:#eef3f9; border:1px dashed #7d9cc0; border-radius:12px; padding:10px 14px; font-size:15px; margin:10px 0;}
+  textarea.io{width:100%; height:70px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:12px;}
+  a{color:var(--red);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+/* ================= DATA ================= */
+
+// [kana, romaji, mnemónica]
+const HIRAGANA_BASE = [
+  ["あ","a","Tiene una letra «a» escondida dentro."],
+  ["い","i","Dos palitos, como una «i» y su reflejo."],
+  ["う","u","Una «u» acostada con sombrerito."],
+  ["え","e","Un pájaro «e»xtraño corriendo."],
+  ["お","o","Una «o» con antena de más."],
+  ["か","ka","Parece alguien dando una patada de KArate."],
+  ["き","ki","Una llave antigua (key → ki)."],
+  ["く","ku","El pico abierto de un CUco."],
+  ["け","ke","Una «K» a la que se le separó el palo."],
+  ["こ","ko","Dos rayitas COrtas, una sobre otra."],
+  ["さ","sa","Una persona SAludando con el brazo."],
+  ["し","shi","Un anzuelo de pescar. SHHH… silencio al pescar."],
+  ["す","su","Un columpio con nudo que SUbe y baja."],
+  ["せ","se","Una boca con un diente que SEñala."],
+  ["そ","so","Un rayo en zigzag: ¡SOrpresa!"],
+  ["た","ta","¡Literalmente parece «t + a» escrito junto!"],
+  ["ち","chi","Parece un número 5 al revés. CHIco travieso."],
+  ["つ","tsu","Una ola de TSUnami."],
+  ["て","te","Una «T» redondeada, como mesa de perfil."],
+  ["と","to","Un clavo TOrcido con una astilla."],
+  ["な","na","Un NAdador estirando los brazos."],
+  ["に","ni","Un NIdo: un palo y dos huevitos al lado."],
+  ["ぬ","nu","Fideos haciendo NUdos enredados."],
+  ["ね","ne","Un gato (NEko) con la cola enroscada."],
+  ["の","no","El símbolo de prohibido: ¡NO!"],
+  ["は","ha","Una «H» con un lacito. JA-JA."],
+  ["ひ","hi","Una gran sonrisa de perfil: ¡JI ji ji!"],
+  ["ふ","fu","El monte FUji con copos de nieve."],
+  ["へ","he","Una montañita. ¡HEy, qué fácil!"],
+  ["ほ","ho","Como は pero con un palo extra: HOguera con más leña."],
+  ["ま","ma","Una MAno enredando hilo."],
+  ["み","mi","Parece el número 21 enredado: «¡MI número!»"],
+  ["む","mu","Una vaca con cuernito diciendo MUuu."],
+  ["め","me","Un ojo. En japonés «me» (め) significa ojo."],
+  ["も","mo","Un anzuelo con MÁs (mo) carnada: dos rayitas."],
+  ["や","ya","Una «y» con un lazo arriba: ¡YA está lista!"],
+  ["ゆ","yu","Un pececito nadando: gllu-glU."],
+  ["よ","yo","Un YOyo con su cuerda."],
+  ["ら","ra","Un renacuajo: una RAna bebé."],
+  ["り","ri","Dos RÍos cayendo, uno corto y uno largo."],
+  ["る","ru","Un RUlo con un nudo al final."],
+  ["れ","re","Una persona REzando de rodillas."],
+  ["ろ","ro","Como る pero ROto: perdió su nudo."],
+  ["わ","wa","Como れ pero con pancita: ¡WA, qué pancita!"],
+  ["を","wo","Alguien lanzando un boomerang: ¡WOw! (solo se usa como partícula)"],
+  ["ん","n","Parece una «n» de cursiva."]
+];
+
+const HIRAGANA_DAKUTEN = [
+  ["が","ga","か + ゛ = ga"],["ぎ","gi","き + ゛ = gi"],["ぐ","gu","く + ゛ = gu"],
+  ["げ","ge","け + ゛ = ge"],["ご","go","こ + ゛ = go"],
+  ["ざ","za","さ + ゛ = za"],["じ","ji","し + ゛ = ji"],["ず","zu","す + ゛ = zu"],
+  ["ぜ","ze","せ + ゛ = ze"],["ぞ","zo","そ + ゛ = zo"],
+  ["だ","da","た + ゛ = da"],["ぢ","ji","ち + ゛ = ji (raro, casi siempre se usa じ)"],
+  ["づ","zu","つ + ゛ = zu (raro, casi siempre se usa ず)"],
+  ["で","de","て + ゛ = de"],["ど","do","と + ゛ = do"],
+  ["ば","ba","は + ゛ = ba"],["び","bi","ひ + ゛ = bi"],["ぶ","bu","ふ + ゛ = bu"],
+  ["べ","be","へ + ゛ = be"],["ぼ","bo","ほ + ゛ = bo"],
+  ["ぱ","pa","は + ゜ = pa"],["ぴ","pi","ひ + ゜ = pi"],["ぷ","pu","ふ + ゜ = pu"],
+  ["ぺ","pe","へ + ゜ = pe"],["ぽ","po","ほ + ゜ = po"]
+];
+
+const HIRAGANA_COMBO = [
+  ["きゃ","kya","き + ゃ pequeña"],["きゅ","kyu","き + ゅ pequeña"],["きょ","kyo","き + ょ pequeña"],
+  ["しゃ","sha","し + ゃ pequeña"],["しゅ","shu","し + ゅ pequeña"],["しょ","sho","し + ょ pequeña"],
+  ["ちゃ","cha","ち + ゃ pequeña"],["ちゅ","chu","ち + ゅ pequeña"],["ちょ","cho","ち + ょ pequeña"]
+];
+
+const KATAKANA_BASE = [
+  ["ア","a","Un 7 con techito."],
+  ["イ","i","Una «i» grande e inclinada con su brazo."],
+  ["ウ","u","Como う pero con techo cuadrado."],
+  ["エ","e","Una viga en forma de «I» mayúscula."],
+  ["オ","o","Un poste con bandera: ¡Oh!"],
+  ["カ","ka","Casi igual que か, sin el trazo extra."],
+  ["キ","ki","Como き pero sin la curva de abajo."],
+  ["ク","ku","El pico de un pato: ¡CUac!"],
+  ["ケ","ke","Una «K» inclinada y estirada."],
+  ["コ","ko","Una esquina cuadrada."],
+  ["サ","sa","Un pasto con dos hojas."],
+  ["シ","shi","Dos puntos y una curva que sube (sonríe). No la confundas con ツ."],
+  ["ス","su","Un patinador deslizándose: SSSS."],
+  ["セ","se","Como せ pero simplificada."],
+  ["ソ","so","UN solo punto y una curva. No la confundas con ン."],
+  ["タ","ta","Como ク pero con un punto adentro: TAco relleno."],
+  ["チ","chi","Un 7 con techo y una rayita: CHIno antiguo del número mil (千)."],
+  ["ツ","tsu","DOS puntos arriba y una curva. Compárala con シ (puntos de lado)."],
+  ["テ","te","Una «T» con techo: TE."],
+  ["ト","to","Un TÓtem: palo con muesca."],
+  ["ナ","na","Una cruz inclinada, como NAvaja."],
+  ["ニ","ni","El kanji del número 2 (二), y «ni» significa 2."],
+  ["ヌ","nu","Como ス pero con un trazo de más: NUdo extra."],
+  ["ネ","ne","Un altar con moño."],
+  ["ノ","no","Una sola línea inclinada: ¡NO hay más!"],
+  ["ハ","ha","Dos rayitas que se abren: JA JA."],
+  ["ヒ","hi","Un palo con un brazo, como una «L» al revés."],
+  ["フ","fu","La mitad de un techo."],
+  ["ヘ","he","¡Es idéntica a へ de hiragana!"],
+  ["ホ","ho","Un arbolito de navidad: ¡HO HO HO!"],
+  ["マ","ma","Un banderín doblado con punto."],
+  ["ミ","mi","Tres rayitas. «Mittsu» = tres en japonés."],
+  ["ム","mu","Un cono de helado: ¡MUy rico!"],
+  ["メ","me","Una «X» con palo: MEta tachada."],
+  ["モ","mo","Como も pero sin el gancho largo."],
+  ["ヤ","ya","Igual que や pero con trazos rectos."],
+  ["ユ","yu","Un gancho en forma de «U» cuadrada."],
+  ["ヨ","yo","Una «E» al revés: ¡YO la volteé!"],
+  ["ラ","ra","Como フ pero con techo: una RAmpa."],
+  ["リ","ri","Casi igual que り: dos ríos."],
+  ["ル","ru","Dos palos y uno da una patada: ¡RUido!"],
+  ["レ","re","Un patín de hielo: REsbala."],
+  ["ロ","ro","Un cuadrado: ROca cuadrada."],
+  ["ワ","wa","Como ウ pero sin el palito de arriba."],
+  ["ヲ","wo","Casi nunca se usa. Parece フ con una raya."],
+  ["ン","n","Un punto y una curva que sube. Compárala con ソ (punto arriba)."]
+];
+
+// [japonés, romaji, español]
+const WORDS = {
+  v1:[["こんにちは","konnichiwa","Hola / Buenas tardes"],
+      ["おはよう","ohayou","Buenos días"],
+      ["こんばんは","konbanwa","Buenas noches (saludo)"],
+      ["ありがとう","arigatou","Gracias"],
+      ["さようなら","sayounara","Adiós"],
+      ["すみません","sumimasen","Disculpe / Perdón"]],
+  v2:[["はい","hai","Sí"],
+      ["いいえ","iie","No"],
+      ["おねがいします","onegai shimasu","Por favor"],
+      ["わたし","watashi","Yo"],
+      ["あなた","anata","Tú"],
+      ["だいじょうぶ","daijoubu","Está bien / No hay problema"]],
+  v3:[["いち","ichi","1 (uno)"],
+      ["に","ni","2 (dos)"],
+      ["さん","san","3 (tres)"],
+      ["よん","yon","4 (cuatro)"],
+      ["ご","go","5 (cinco)"],
+      ["ろく","roku","6 (seis)"],
+      ["なな","nana","7 (siete)"],
+      ["はち","hachi","8 (ocho)"],
+      ["きゅう","kyuu","9 (nueve)"],
+      ["じゅう","juu","10 (diez)"]],
+  v4:[["みず","mizu","Agua"],
+      ["ねこ","neko","Gato"],
+      ["いぬ","inu","Perro"],
+      ["ほん","hon","Libro"],
+      ["くるま","kuruma","Coche"],
+      ["たべもの","tabemono","Comida"]],
+  v5:[["コーヒー","koohii","Café"],
+      ["テレビ","terebi","Televisión"],
+      ["ホテル","hoteru","Hotel"],
+      ["バス","basu","Autobús"],
+      ["タクシー","takushii","Taxi"],
+      ["アメリカ","amerika","Estados Unidos"]]
+};
+
+function slice(arr,a,b){ return arr.slice(a,b); }
+
+const LESSONS = [
+  {id:"h1", sec:"Hiragana · La base", title:"Vocales あいうえお", kana:slice(HIRAGANA_BASE,0,5),
+   note:"El hiragana es el alfabeto básico del japonés. Cada símbolo es una sílaba. Con estas 5 vocales ya puedes leer palabras como あい (ai = amor) y いえ (ie = casa)."},
+  {id:"h2", sec:"Hiragana · La base", title:"Fila K かきくけこ", kana:slice(HIRAGANA_BASE,5,10),
+   note:"K + vocal: ka, ki, ku, ke, ko. Ya puedes leer かお (kao = cara) y こえ (koe = voz)."},
+  {id:"h3", sec:"Hiragana · La base", title:"Fila S さしすせそ", kana:slice(HIRAGANA_BASE,10,15),
+   note:"Ojo: し se lee «shi», no «si». Es la única irregular de esta fila."},
+  {id:"h4", sec:"Hiragana · La base", title:"Fila T たちつてと", kana:slice(HIRAGANA_BASE,15,20),
+   note:"Dos irregulares: ち = «chi» y つ = «tsu»."},
+  {id:"h5", sec:"Hiragana · La base", title:"Fila N なにぬねの", kana:slice(HIRAGANA_BASE,20,25),
+   note:"Con esto ya lees ねこ (neko = gato) e いぬ (inu = perro)."},
+  {id:"h6", sec:"Hiragana · La base", title:"Fila H はひふへほ", kana:slice(HIRAGANA_BASE,25,30),
+   note:"La H se pronuncia como la J suave del español (ja, ji…). ふ es «fu». Dato: は se lee «wa» cuando funciona como partícula (como en こんにちは)."},
+  {id:"h7", sec:"Hiragana · La base", title:"Fila M まみむめも", kana:slice(HIRAGANA_BASE,30,35),
+   note:"¡Ya puedes leer みず (mizu = agua)! Como tu proyecto Aquasafe 💧"},
+  {id:"h8", sec:"Hiragana · La base", title:"Filas Y y R やゆよ・らりるれろ", kana:slice(HIRAGANA_BASE,35,43),
+   note:"La R japonesa es suave, entre la R y la L del español (como la r de «pero»)."},
+  {id:"h9", sec:"Hiragana · La base", title:"わ・を・ん — ¡completas la base!", kana:slice(HIRAGANA_BASE,43,46),
+   note:"ん es el único kana que es consonante sola. Al terminar esta lección ya conoces los 46 hiragana básicos. 🎉"},
+  {id:"h10", sec:"Hiragana · Sonidos extra", title:"Dakuten ゛: filas G y Z", kana:slice(HIRAGANA_DAKUTEN,0,10),
+   note:"Dos rayitas (゛) convierten sonidos: K→G y S→Z. No son símbolos nuevos, ¡ya los conoces!"},
+  {id:"h11", sec:"Hiragana · Sonidos extra", title:"Dakuten ゛: filas D y B", kana:slice(HIRAGANA_DAKUTEN,10,20),
+   note:"T→D y H→B con las mismas dos rayitas."},
+  {id:"h12", sec:"Hiragana · Sonidos extra", title:"Handakuten ゜: fila P", kana:slice(HIRAGANA_DAKUTEN,20,25),
+   note:"Un circulito (゜) convierte H→P. Solo existe en esta fila."},
+  {id:"h13", sec:"Hiragana · Sonidos extra", title:"Combinaciones きゃ・しゃ・ちゃ", kana:HIRAGANA_COMBO,
+   note:"Un kana + や/ゆ/よ pequeña = una sola sílaba. きや (kiya, 2 sílabas) ≠ きゃ (kya, 1 sílaba)."},
+  {id:"v1", sec:"Vocabulario I · Tus primeras palabras", title:"Saludos", words:WORDS.v1,
+   note:"¡Ahora ya LEES japonés de verdad! Estas palabras están 100% en hiragana que ya conoces."},
+  {id:"v2", sec:"Vocabulario I · Tus primeras palabras", title:"Sí, no y frases básicas", words:WORDS.v2},
+  {id:"v3", sec:"Vocabulario I · Tus primeras palabras", title:"Números del 1 al 10", words:WORDS.v3,
+   note:"El apunte «uu» o «ou» en romaji indica vocal larga: きゅう se pronuncia «kyuu» alargando la u."},
+  {id:"v4", sec:"Vocabulario I · Tus primeras palabras", title:"Palabras cotidianas", words:WORDS.v4},
+  {id:"k1", sec:"Katakana · Para palabras extranjeras", title:"Vocales アイウエオ", kana:slice(KATAKANA_BASE,0,5),
+   note:"El katakana suena IGUAL que el hiragana, solo cambia la forma. Se usa para palabras extranjeras: café, taxi, nombres… Tu nombre se escribe en katakana."},
+  {id:"k2", sec:"Katakana · Para palabras extranjeras", title:"Fila K カキクケコ", kana:slice(KATAKANA_BASE,5,10)},
+  {id:"k3", sec:"Katakana · Para palabras extranjeras", title:"Fila S サシスセソ", kana:slice(KATAKANA_BASE,10,15),
+   note:"シ (shi) y ソ (so) son muy parecidas: fíjate si los puntos están de lado (シ) o arriba (ソ)."},
+  {id:"k4", sec:"Katakana · Para palabras extranjeras", title:"Fila T タチツテト", kana:slice(KATAKANA_BASE,15,20),
+   note:"ツ (tsu) vs シ (shi): en ツ los puntos apuntan hacia abajo, en シ hacia la derecha."},
+  {id:"k5", sec:"Katakana · Para palabras extranjeras", title:"Fila N ナニヌネノ", kana:slice(KATAKANA_BASE,20,25)},
+  {id:"k6", sec:"Katakana · Para palabras extranjeras", title:"Fila H ハヒフヘホ", kana:slice(KATAKANA_BASE,25,30)},
+  {id:"k7", sec:"Katakana · Para palabras extranjeras", title:"Fila M マミムメモ", kana:slice(KATAKANA_BASE,30,35)},
+  {id:"k8", sec:"Katakana · Para palabras extranjeras", title:"Filas Y y R ヤユヨ・ラリルレロ", kana:slice(KATAKANA_BASE,35,43)},
+  {id:"k9", sec:"Katakana · Para palabras extranjeras", title:"ワ・ヲ・ン y la raya ー", kana:slice(KATAKANA_BASE,43,46),
+   note:"En katakana, la raya ー alarga la vocal anterior: コーヒー = koohii (café). El dakuten ゛ y ゜ funcionan igual que en hiragana: カ→ガ, ハ→パ."},
+  {id:"v5", sec:"Vocabulario II · Katakana en acción", title:"Palabras en katakana", words:WORDS.v5,
+   note:"¿Notaste? Muchas vienen del inglés. Cuando veas katakana en la vida real, pronúncialo: ¡seguro reconoces la palabra!"}
+];
+
+const KANA_ALL = HIRAGANA_BASE.concat(HIRAGANA_DAKUTEN, HIRAGANA_COMBO, KATAKANA_BASE);
+const KANA_MAP = {}; KANA_ALL.forEach(k=>KANA_MAP[k[0]]=k);
+const WORD_ALL = [].concat(WORDS.v1,WORDS.v2,WORDS.v3,WORDS.v4,WORDS.v5);
+const WORD_MAP = {}; WORD_ALL.forEach(w=>WORD_MAP[w[0]]=w);
+
+const XP_GOAL = 20;           // XP diario para mantener la racha
+const XP_LESSON = 20;         // XP por lección aprobada
+const XP_REVIEW = 2;          // XP por respuesta correcta en repaso
+const SRS_DAYS = [0,1,3,7,14,30,60];
+
+/* ================= ESTADO ================= */
+
+let state = {
+  completed:{},        // lessonId -> true
+  srs:{},              // itemId -> {t:'k'|'w', box:n, due:timestamp}
+  streak:0, lastStreakDay:null,
+  xpDay:null, xpToday:0, totalXp:0
+};
+
+function save(){ try{ localStorage.setItem("nihongoState", JSON.stringify(state)); }catch(e){} }
+function load(){
+  try{
+    const s = localStorage.getItem("nihongoState");
+    if(s){ state = Object.assign(state, JSON.parse(s)); }
+  }catch(e){}
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function diffDays(a,b){
+  if(!a||!b) return 999;
+  return Math.round((new Date(b) - new Date(a)) / 86400000);
+}
+function xpToday(){
+  return state.xpDay === todayStr() ? state.xpToday : 0;
+}
+function currentStreak(){
+  if(!state.lastStreakDay) return 0;
+  const d = diffDays(state.lastStreakDay, todayStr());
+  return (d===0 || d===1) ? state.streak : 0;
+}
+function addXp(n){
+  const t = todayStr();
+  if(state.xpDay !== t){ state.xpDay = t; state.xpToday = 0; }
+  const before = state.xpToday;
+  state.xpToday += n;
+  state.totalXp += n;
+  if(before < XP_GOAL && state.xpToday >= XP_GOAL && state.lastStreakDay !== t){
+    state.streak = (diffDays(state.lastStreakDay, t) === 1) ? state.streak + 1 : 1;
+    state.lastStreakDay = t;
+  }
+  save();
+}
+function addSrsItems(lesson){
+  const now = Date.now();
+  const items = lesson.kana ? lesson.kana.map(k=>({id:k[0],t:"k"})) :
+                              lesson.words.map(w=>({id:w[0],t:"w"}));
+  items.forEach(it=>{
+    if(!state.srs[it.id]) state.srs[it.id] = {t:it.t, box:0, due:now};
+  });
+  save();
+}
+function dueItems(){
+  const now = Date.now();
+  return Object.keys(state.srs).filter(id => state.srs[id].due <= now);
+}
+
+/* ================= UTILIDADES ================= */
+
+const app = document.getElementById("app");
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function shuffle(a){
+  a = a.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function pick(arr,n,exclude){
+  const pool = shuffle(arr.filter(x=>x!==exclude));
+  return pool.slice(0,n);
+}
+function header(){
+  const s = currentStreak();
+  const xp = xpToday();
+  const done = xp >= XP_GOAL;
+  return '<header>'+
+    '<h1>🌸 日本語</h1>'+
+    '<div class="stats">'+
+      '<span class="pill '+(done?"hot":"")+'">🔥 '+s+'</span>'+
+      '<span class="pill">⭐ '+xp+'/'+XP_GOAL+'</span>'+
+    '</div></header>';
+}
+function topnav(title){
+  return '<div class="topnav"><button class="backbtn" onclick="renderHome()">←</button><b>'+esc(title)+'</b></div>';
+}
+
+/* ================= PANTALLA: INICIO ================= */
+
+function renderHome(){
+  const xp = xpToday();
+  const pct = Math.min(100, Math.round(xp/XP_GOAL*100));
+  const due = dueItems().length;
+  const s = currentStreak();
+  const doneToday = state.lastStreakDay === todayStr();
+
+  let html = header();
+
+  html += '<div class="card">';
+  if(doneToday){
+    html += '<b>✅ ¡Meta de hoy cumplida!</b> <span class="muted">Racha protegida. Puedes seguir repasando si quieres.</span>';
+  } else if(s > 0){
+    html += '<b>🔥 Racha de '+s+' día'+(s===1?"":"s")+'.</b> <span class="muted">Completa '+(XP_GOAL-xp)+' XP más hoy para no perderla.</span>';
+  } else {
+    html += '<b>¡Empieza tu racha hoy!</b> <span class="muted">Una lección al día es suficiente (≈5 min).</span>';
+  }
+  html += '<div class="goalbar"><div style="width:'+pct+'%"></div></div></div>';
+
+  if(due > 0){
+    html += '<div class="card center"><b>📬 Tienes '+due+' repaso'+(due===1?"":"s")+' pendiente'+(due===1?"":"s")+'</b>'+
+      '<p class="muted" style="margin:6px 0 12px">Repasar es lo que hace que se te quede grabado.</p>'+
+      '<button class="btn green big" onclick="startReview()">Repasar ahora</button></div>';
+  } else if(Object.keys(state.srs).length > 0){
+    html += '<div class="card center muted">✨ No tienes repasos pendientes por ahora. ¡Sigue con la siguiente lección!</div>';
+  }
+
+  // Lista de lecciones
+  let unlocked = true;
+  let lastSec = "";
+  LESSONS.forEach((L,i)=>{
+    if(L.sec !== lastSec){ html += '<div class="section-title">'+esc(L.sec)+'</div>'; lastSec = L.sec; }
+    const done = !!state.completed[L.id];
+    const canOpen = unlocked;
+    const cls = done ? "done" : (canOpen ? "" : "locked");
+    const icon = done ? "✓" : (canOpen ? (i+1) : "🔒");
+    const sub = L.kana ? L.kana.length+" símbolos" : L.words.length+" palabras";
+    html += '<div class="lesson-row '+cls+'" '+(canOpen?'onclick="startLesson(\''+L.id+'\')"':'')+'>'+
+      '<div class="badge">'+icon+'</div>'+
+      '<div><div class="t">'+esc(L.title)+'</div><div class="s">'+sub+(done?" · completada — toca para repetir":"")+'</div></div></div>';
+    if(!done) unlocked = false;
+  });
+
+  html += '<div class="section-title">Extras</div>';
+  html += '<div class="lesson-row" onclick="renderChart()"><div class="badge" style="background:#7d9cc0">あ</div>'+
+          '<div><div class="t">Tabla de kana</div><div class="s">Consulta todos los símbolos</div></div></div>';
+  html += '<div class="lesson-row" onclick="renderAbout()"><div class="badge" style="background:#b09a6a">?</div>'+
+          '<div><div class="t">Cómo funciona · Respaldar progreso</div><div class="s">Guía rápida y exportar/importar</div></div></div>';
+
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+}
+
+/* ================= PANTALLA: LECCIÓN (ENSEÑANZA) ================= */
+
+let cur = null; // {lesson, idx}
+
+function startLesson(id){
+  const L = LESSONS.find(x=>x.id===id);
+  cur = {lesson:L, idx:0};
+  renderTeach();
+}
+
+function renderTeach(){
+  const L = cur.lesson;
+  const items = L.kana || L.words;
+  const i = cur.idx;
+  const it = items[i];
+  let html = topnav(L.title);
+  html += '<div class="qbar"><div style="width:'+Math.round(i/items.length*100)+'%"></div></div>';
+
+  if(i===0 && L.note){ html += '<div class="note">💡 '+esc(L.note)+'</div>'; }
+
+  if(L.kana){
+    html += '<div class="card">'+
+      '<div class="kana-hero jp">'+it[0]+'</div>'+
+      '<div class="romaji-hero">'+esc(it[1])+'</div>'+
+      '<div class="mnemonic">🧠 '+esc(it[2])+'</div>'+
+      '<div class="center muted">✍️ Practica trazándolo encima de la guía:</div>'+
+      '<canvas class="trace" id="trace" width="220" height="220"></canvas>'+
+      '<div class="center"><button class="btn sec" onclick="clearTrace()">Borrar trazo</button></div>'+
+      '</div>';
+  } else {
+    html += '<div class="card">'+
+      '<div class="kana-hero jp" style="font-size:56px">'+it[0]+'</div>'+
+      '<div class="romaji-hero">'+esc(it[1])+'</div>'+
+      '<div class="center" style="font-size:22px; font-weight:700">'+esc(it[2])+'</div>'+
+      '</div>';
+  }
+
+  html += '<div style="display:flex; gap:10px; margin-top:10px">';
+  if(i>0) html += '<button class="btn sec" style="flex:1" onclick="cur.idx--; renderTeach()">← Anterior</button>';
+  if(i < items.length-1){
+    html += '<button class="btn" style="flex:2" onclick="cur.idx++; renderTeach()">Siguiente →</button>';
+  } else {
+    html += '<button class="btn green" style="flex:2" onclick="startQuiz()">¡Al quiz! ✏️</button>';
+  }
+  html += '</div>';
+  html += '<p class="center muted">'+(i+1)+' de '+items.length+'</p>';
+
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+  if(L.kana) initTrace(it[0]);
+}
+
+/* --- Canvas de trazado --- */
+let traceCtx = null, traceChar = "", drawing = false;
+
+function drawGuide(){
+  const c = document.getElementById("trace");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle = "#efe8da";
+  const size = traceChar.length > 1 ? 110 : 170;
+  ctx.font = size+'px "Yu Gothic","Meiryo",sans-serif';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(traceChar, c.width/2, c.height/2 + 8);
+}
+function initTrace(ch){
+  traceChar = ch;
+  const c = document.getElementById("trace");
+  if(!c) return;
+  traceCtx = c.getContext("2d");
+  drawGuide();
+  const pos = ev => {
+    const r = c.getBoundingClientRect();
+    return [ (ev.clientX - r.left) * c.width / r.width,
+             (ev.clientY - r.top) * c.height / r.height ];
+  };
+  c.onpointerdown = ev => {
+    drawing = true;
+    c.setPointerCapture(ev.pointerId);
+    const [x,y] = pos(ev);
+    traceCtx.beginPath();
+    traceCtx.moveTo(x,y);
+  };
+  c.onpointermove = ev => {
+    if(!drawing) return;
+    const [x,y] = pos(ev);
+    traceCtx.lineTo(x,y);
+    traceCtx.strokeStyle = "#c93b3b";
+    traceCtx.lineWidth = 7;
+    traceCtx.lineCap = "round";
+    traceCtx.lineJoin = "round";
+    traceCtx.stroke();
+  };
+  c.onpointerup = () => { drawing = false; };
+}
+function clearTrace(){ drawGuide(); }
+
+/* ================= QUIZ DE LECCIÓN ================= */
+
+let quiz = null; // {questions, i, correct, mode:'lesson'|'review'}
+
+function makeKanaQuestion(kana, dir, pool){
+  // dir 0: kana -> romaji ; dir 1: romaji -> kana
+  let distract;
+  if(dir===0){
+    // lecturas únicas y distintas a la respuesta
+    const cand = Array.from(new Set(pool.map(k=>k[1]))).filter(r=>r!==kana[1]);
+    distract = shuffle(cand).slice(0,3);
+  } else {
+    // símbolos cuya lectura NO sea la misma (evita que ぢ cuente como error si piden «ji»)
+    const cand = pool.filter(k=>k[1]!==kana[1]).map(k=>k[0]);
+    distract = shuffle(Array.from(new Set(cand))).slice(0,3);
+  }
+  const answer = dir===0 ? kana[1] : kana[0];
+  return {
+    prompt: dir===0 ? kana[0] : kana[1],
+    promptBig: dir===0,
+    label: dir===0 ? "¿Cómo se lee?" : "¿Cuál es el símbolo?",
+    options: shuffle(distract.concat([answer])),
+    answer: answer,
+    jpOptions: dir===1,
+    itemId: kana[0]
+  };
+}
+function makeWordQuestion(word, dir, pool){
+  // dir 0: jp -> es ; dir 1: es -> jp
+  const distract = pick(pool.map(w=>w[dir===0?2:0]), 3, word[dir===0?2:0]);
+  const answer = dir===0 ? word[2] : word[0];
+  return {
+    prompt: dir===0 ? word[0] : word[2],
+    promptBig: dir===0,
+    sub: dir===0 ? "("+word[1]+")" : "",
+    label: dir===0 ? "¿Qué significa?" : "¿Cómo se escribe en japonés?",
+    options: shuffle(distract.concat([answer])),
+    answer: answer,
+    jpOptions: dir===1,
+    smallOptions: dir===0,
+    itemId: word[0]
+  };
+}
+
+function startQuiz(){
+  const L = cur.lesson;
+  let qs = [];
+  if(L.kana){
+    const pool = L.kana.length >= 4 ? L.kana
+      : KANA_ALL.filter(k => HIRA_SET.has(k[0]) === HIRA_SET.has(L.kana[0][0]));
+    L.kana.forEach(k=>{
+      qs.push(makeKanaQuestion(k,0,pool));
+      qs.push(makeKanaQuestion(k,1,pool));
+    });
+  } else {
+    L.words.forEach(w=>{
+      qs.push(makeWordQuestion(w,0,L.words.length>=4?L.words:WORD_ALL));
+      qs.push(makeWordQuestion(w,1,L.words.length>=4?L.words:WORD_ALL));
+    });
+  }
+  quiz = {questions:shuffle(qs), i:0, correct:0, mode:"lesson"};
+  renderQuestion();
+}
+
+const HIRA_SET = new Set(HIRAGANA_BASE.concat(HIRAGANA_DAKUTEN, HIRAGANA_COMBO).map(k=>k[0]));
+
+function startReview(){
+  const ids = shuffle(dueItems()).slice(0,20);
+  let qs = ids.map(id=>{
+    const it = state.srs[id];
+    const dir = Math.random()<0.5 ? 0 : 1;
+    if(it.t==="k"){
+      const k = KANA_MAP[id];
+      const sameScript = KANA_ALL.filter(x=> HIRA_SET.has(x[0]) === HIRA_SET.has(id));
+      return makeKanaQuestion(k, dir, sameScript);
+    } else {
+      return makeWordQuestion(WORD_MAP[id], dir, WORD_ALL);
+    }
+  });
+  quiz = {questions:qs, i:0, correct:0, mode:"review", again:[]};
+  renderQuestion();
+}
+
+function renderQuestion(){
+  const q = quiz.questions[quiz.i];
+  const total = quiz.questions.length;
+  let html = topnav(quiz.mode==="review" ? "Repaso" : "Quiz: "+cur.lesson.title);
+  html += '<div class="qbar"><div style="width:'+Math.round(quiz.i/total*100)+'%"></div></div>';
+  html += '<div class="card center">';
+  html += '<div class="muted">'+esc(q.label)+'</div>';
+  if(q.promptBig){
+    html += '<div class="kana-hero jp" style="font-size:'+(q.prompt.length>3?'44':'80')+'px">'+esc(q.prompt)+'</div>';
+  } else {
+    html += '<div style="font-size:30px; font-weight:800; margin:16px 0">'+esc(q.prompt)+'</div>';
+  }
+  html += '<div class="options">';
+  q.options.forEach((op,j)=>{
+    const cls = "opt" + (q.jpOptions?" jp":"") + (q.smallOptions?" small":"");
+    html += '<div class="'+cls+'" id="opt'+j+'" onclick="answer('+j+')">'+esc(op)+'</div>';
+  });
+  html += '</div><div class="feedback" id="fb"></div></div>';
+  html += '<p class="center muted">Pregunta '+(quiz.i+1)+' de '+total+'</p>';
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+}
+
+let answered = false;
+function answer(j){
+  if(answered) return;
+  answered = true;
+  const q = quiz.questions[quiz.i];
+  const chosen = q.options[j];
+  const ok = chosen === q.answer;
+  const fb = document.getElementById("fb");
+  if(ok){
+    document.getElementById("opt"+j).classList.add("good");
+    fb.textContent = "¡Correcto! 🎉";
+    fb.className = "feedback ok";
+    quiz.correct++;
+  } else {
+    document.getElementById("opt"+j).classList.add("bad");
+    q.options.forEach((op,idx)=>{ if(op===q.answer) document.getElementById("opt"+idx).classList.add("good"); });
+    fb.textContent = "La respuesta era: "+q.answer;
+    fb.className = "feedback no";
+  }
+  // SRS en modo repaso
+  if(quiz.mode==="review"){
+    const it = state.srs[q.itemId];
+    if(it){
+      if(ok){
+        addXp(XP_REVIEW);
+        it.box = Math.min(it.box+1, SRS_DAYS.length-1);
+        it.due = Date.now() + SRS_DAYS[it.box]*86400000;
+      } else {
+        it.box = 0;
+        it.due = Date.now() + 86400000; // reintento mañana
+        quiz.again.push(q); // y una vez más en esta sesión
+      }
+      save();
+    }
+  }
+  setTimeout(()=>{
+    answered = false;
+    quiz.i++;
+    if(quiz.i < quiz.questions.length){
+      renderQuestion();
+    } else if(quiz.mode==="review" && quiz.again.length){
+      quiz.questions = quiz.questions.concat(shuffle(quiz.again));
+      quiz.again = [];
+      renderQuestion();
+    } else {
+      finishQuiz();
+    }
+  }, ok ? 700 : 1600);
+}
+
+function finishQuiz(){
+  const total = quiz.questions.length;
+  const pct = Math.round(quiz.correct/total*100);
+  let html = topnav(quiz.mode==="review" ? "Repaso" : cur.lesson.title);
+
+  if(quiz.mode === "review"){
+    html += '<div class="card center"><div class="bigmsg">🌟</div>'+
+      '<h2>¡Repaso completado!</h2>'+
+      '<p>'+quiz.correct+' de '+total+' correctas · +'+(quiz.correct*XP_REVIEW)+' XP</p>'+
+      streakLine()+
+      '<button class="btn big" onclick="renderHome()">Continuar</button></div>';
+  } else {
+    const passed = pct >= 80;
+    if(passed){
+      const first = !state.completed[cur.lesson.id];
+      state.completed[cur.lesson.id] = true;
+      addSrsItems(cur.lesson);
+      addXp(XP_LESSON);
+      html += '<div class="card center"><div class="bigmsg">🎉</div>'+
+        '<h2>¡Lección aprobada!</h2>'+
+        '<p>'+quiz.correct+' de '+total+' correctas ('+pct+'%) · +'+XP_LESSON+' XP</p>'+
+        (first?'<p class="muted">Estos símbolos entraron a tu sistema de repasos: te los volveré a preguntar en los próximos días para que no se te olviden.</p>':'')+
+        streakLine()+
+        '<button class="btn big" onclick="renderHome()">Continuar</button></div>';
+    } else {
+      html += '<div class="card center"><div class="bigmsg">💪</div>'+
+        '<h2>Casi…</h2>'+
+        '<p>'+quiz.correct+' de '+total+' correctas ('+pct+'%). Necesitas 80% para aprobar.</p>'+
+        '<p class="muted">Repasa los símbolos con calma y vuelve a intentarlo. ¡Así se aprende!</p>'+
+        '<button class="btn big" onclick="startLesson(\''+cur.lesson.id+'\')">Repetir lección</button>'+
+        '<p><button class="btn sec" onclick="renderHome()">Volver al inicio</button></p></div>';
+    }
+  }
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+}
+
+function streakLine(){
+  const t = todayStr();
+  if(state.lastStreakDay === t){
+    return '<p style="font-size:20px">🔥 Racha: <b>'+state.streak+' día'+(state.streak===1?"":"s")+'</b> — ¡meta de hoy cumplida!</p>';
+  }
+  const falta = XP_GOAL - xpToday();
+  return '<p class="muted">Te faltan '+falta+' XP para asegurar tu racha de hoy.</p>';
+}
+
+/* ================= PANTALLA: TABLA DE KANA ================= */
+
+let chartTab = "h";
+function renderChart(tab){
+  if(tab) chartTab = tab;
+  const data = chartTab==="h" ? HIRAGANA_BASE : KATAKANA_BASE;
+  let html = topnav("Tabla de kana");
+  html += '<div class="tabs">'+
+    '<div class="tab '+(chartTab==="h"?"on":"")+'" onclick="renderChart(\'h\')">Hiragana</div>'+
+    '<div class="tab '+(chartTab==="k"?"on":"")+'" onclick="renderChart(\'k\')">Katakana</div></div>';
+  html += '<div class="card"><table class="chart"><tbody>';
+  // 46 kana básicos en filas de 5 (con excepciones y/w)
+  const layout = [[0,5],[5,10],[10,15],[15,20],[20,25],[25,30],[30,35],[35,38],[38,43],[43,46]];
+  layout.forEach(([a,b])=>{
+    html += '<tr>';
+    for(let i=a;i<b;i++){
+      html += '<td class="jp">'+data[i][0]+'<small>'+data[i][1]+'</small></td>';
+    }
+    for(let i=b-a;i<5;i++) html += '<td style="border:none;background:none"></td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  if(chartTab==="h"){
+    html += '<div class="card"><b>Dakuten y combinaciones</b><table class="chart" style="margin-top:8px"><tbody>';
+    const D = HIRAGANA_DAKUTEN.concat(HIRAGANA_COMBO);
+    for(let r=0; r<D.length; r+=5){
+      html += '<tr>';
+      for(let i=r;i<Math.min(r+5,D.length);i++){
+        html += '<td class="jp">'+D[i][0]+'<small>'+D[i][1]+'</small></td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div class="note">El dakuten funciona igual: カ→ガ (ga), サ→ザ (za), タ→ダ (da), ハ→バ (ba), ハ→パ (pa). La raya ー alarga la vocal: コーヒー (koohii).</div>';
+  }
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+}
+
+/* ================= PANTALLA: AYUDA / RESPALDO ================= */
+
+function renderAbout(){
+  let html = topnav("Cómo funciona");
+  html += '<div class="card">'+
+    '<b>🗺️ Tu camino</b>'+
+    '<p>1️⃣ <b>Hiragana</b> (13 lecciones): el alfabeto básico. Con él ya lees japonés de verdad.<br>'+
+    '2️⃣ <b>Primeras palabras</b>: saludos, números y vocabulario útil.<br>'+
+    '3️⃣ <b>Katakana</b> (9 lecciones): el alfabeto para palabras extranjeras.<br>'+
+    '4️⃣ Después de esto estarás listo para kanji y gramática básica.</p>'+
+    '<b>🔥 La racha</b>'+
+    '<p>Gana <b>'+XP_GOAL+' XP al día</b> para mantenerla: una lección ('+XP_LESSON+' XP) o '+(XP_GOAL/XP_REVIEW)+' repasos correctos. Con 5 minutos diarios basta — la constancia le gana a las sesiones largas.</p>'+
+    '<b>📬 Los repasos</b>'+
+    '<p>Cada símbolo que apruebas entra a un sistema de repaso espaciado: te lo pregunto hoy, mañana, a los 3 días, 7, 14, 30… Si fallas, vuelve al inicio. Así se pasa de "lo vi" a "me lo sé".</p>'+
+    '<b>✍️ Consejo</b>'+
+    '<p>Traza cada símbolo con el dedo o el mouse cuando lo aprendas. Escribir activa otra parte de la memoria que solo mirar no activa.</p>'+
+    '</div>';
+  html += '<div class="card">'+
+    '<b>💾 Respaldar / pasar tu progreso a otro dispositivo</b>'+
+    '<p class="muted">Tu progreso se guarda en este navegador. Para llevarlo a otra compu o al teléfono: copia el código de abajo y pégalo en el otro dispositivo con «Importar».</p>'+
+    '<textarea class="io" id="ioBox" placeholder="Aquí aparece tu código de progreso, o pega uno para importar"></textarea>'+
+    '<div style="display:flex; gap:10px; margin-top:8px">'+
+    '<button class="btn sec" style="flex:1" onclick="exportProgress()">Exportar</button>'+
+    '<button class="btn sec" style="flex:1" onclick="importProgress()">Importar</button>'+
+    '</div><div class="feedback" id="ioMsg"></div></div>';
+  html += '<p class="center muted">Total acumulado: ⭐ '+state.totalXp+' XP · '+Object.keys(state.completed).length+' de '+LESSONS.length+' lecciones</p>';
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+}
+function exportProgress(){
+  document.getElementById("ioBox").value = JSON.stringify(state);
+  const m = document.getElementById("ioMsg");
+  m.textContent = "✅ Listo: copia todo el texto del cuadro.";
+  m.className = "feedback ok";
+}
+function importProgress(){
+  const m = document.getElementById("ioMsg");
+  try{
+    const v = JSON.parse(document.getElementById("ioBox").value);
+    if(typeof v !== "object" || !("completed" in v)) throw 0;
+    state = Object.assign(state, v);
+    save();
+    m.textContent = "✅ Progreso importado correctamente.";
+    m.className = "feedback ok";
+    setTimeout(renderHome, 900);
+  }catch(e){
+    m.textContent = "❌ Ese código no es válido. Pega exactamente lo que exportaste.";
+    m.className = "feedback no";
+  }
+}
+
+/* ================= INICIO ================= */
+load();
+renderHome();
+
+// Permite usar la app sin internet una vez que la abriste la primera vez.
+// Solo aplica cuando está publicada (http/https), no al abrirla con doble clic.
+if("serviceWorker" in navigator && location.protocol.indexOf("http") === 0){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
