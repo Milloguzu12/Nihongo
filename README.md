@@ -16,6 +16,7 @@ App web de un solo archivo para aprender japonés: hiragana, katakana y vocabula
 ## Cómo aprende
 
 - **Mnemónicas en español** para cada símbolo (ね = un gato con la cola enroscada, y *neko* significa gato).
+- **Pronunciación**: cómo se escribiría cada sílaba en español (か → «ca», き → «qui», は → «ja» suave) con aviso en los sonidos que el español no tiene (し, つ, ふ, ら, ざ). Botón 🔊 con el sintetizador del propio dispositivo: voz japonesa si está instalada, o voz española como aproximación.
 - **Trazado a mano con evaluación**: cada kana se practica dibujándolo sobre una guía. La calificación es neta (lo que cubres de la letra menos lo que pintas fuera) y también se revisa el número de trazos (筆順). Umbrales calibrados con trazos simulados sobre los 126 kana.
 - **Práctica de escritura libre**: repasa cualquier símbolo aprendido con guía o **de memoria** — solo con el romaji como pista, en el tamaño y posición que quieras; la app normaliza tu dibujo y compara la forma.
 - **Quiz en ambas direcciones**: símbolo → lectura y lectura → símbolo. Se requiere 80% para avanzar.

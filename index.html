@@ -121,6 +121,18 @@
   .tab.on{background:var(--red); color:#fff; border-color:var(--red);}
   .bigmsg{font-size:42px; text-align:center; margin:10px 0;}
   .note{background:#eef3f9; border:1px dashed #7d9cc0; border-radius:12px; padding:10px 14px; font-size:15px; margin:10px 0;}
+  .pron{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    background:#f3f0e8; border:1px solid var(--line); border-radius:12px;
+    padding:10px 14px; margin:10px 0; font-size:16px;
+  }
+  .pron-nota{font-size:13px; color:var(--sub); margin-top:3px; line-height:1.35;}
+  .spk{
+    flex:none; width:46px; height:46px; border-radius:50%; cursor:pointer;
+    border:none; background:var(--red); color:#fff; font-size:21px;
+    box-shadow:0 3px 0 var(--red-dark); transition:transform .05s;
+  }
+  .spk:active{transform:translateY(2px); box-shadow:0 1px 0 var(--red-dark);}
   textarea.io{width:100%; height:70px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:12px;}
   a{color:var(--red);}
 </style>
@@ -369,6 +381,114 @@ const STROKES = {
   "ワ":2,"ヲ":3,"ン":2
 };
 
+/* ===== PRONUNCIACIÓN =====
+   Cómo escribirías cada sílaba en español para que suene bien, más una nota
+   para los sonidos que en español no existen. Índice de vocales: a i u e o. */
+const ES_SON = {
+  "":   {sp:["a","i","u","e","o"],
+         nota:"Buenas noticias: las 5 vocales japonesas suenan casi idénticas a las españolas."},
+  "k":  {sp:["ca","qui","cu","que","co"], nota:null},
+  "g":  {sp:["ga","gui","gu","gue","go"], nota:"g siempre dura, como «gato» — nunca como «gente»."},
+  "s":  {sp:["sa","si","su","se","so"], nota:null},
+  "sh": {sp:["sha","shi","shu","she","sho"],
+         nota:"«sh» no existe en español: es el sonido de mandar callar, «shhh»."},
+  "z":  {sp:["za","zi","zu","ze","zo"],
+         nota:"z ZUMBADA, como el inglés «zoo» — no la «s» del español."},
+  "j":  {sp:["ya","yi","yu","ye","yo"],
+         nota:"como una «y» bien marcada, casi «dy». Es la «j» inglesa de «jeep»."},
+  "t":  {sp:["ta","ti","tu","te","to"], nota:null},
+  "ch": {sp:["cha","chi","chu","che","cho"], nota:null},
+  "ts": {sp:["tsa","tsi","tsu","tse","tso"],
+         nota:"junta la «t» y la «s» en un solo golpe, como en «tsunami»."},
+  "d":  {sp:["da","di","du","de","do"], nota:null},
+  "n":  {sp:["na","ni","nu","ne","no"], nota:null},
+  "h":  {sp:["ja","ji","ju","je","jo"],
+         nota:"«j» MUY suave, casi un soplido — no la «j» rasposa de «jamón»."},
+  "f":  {sp:["fa","fi","fu","fe","fo"],
+         nota:"sopla entre los labios SIN morderte el labio: queda entre «f» y «j» suave."},
+  "b":  {sp:["ba","bi","bu","be","bo"], nota:null},
+  "p":  {sp:["pa","pi","pu","pe","po"], nota:null},
+  "m":  {sp:["ma","mi","mu","me","mo"], nota:null},
+  "y":  {sp:["ya","yi","yu","ye","yo"], nota:null},
+  "r":  {sp:["ra","ri","ru","re","ro"],
+         nota:"«r» suave de «pero», NUNCA la «rr» de «perro». Suena casi como una «l»."},
+  "w":  {sp:["ua","ui","u","ue","uo"], nota:"como la «ua» de «cuando», sin la c."},
+  "ky": {sp:["kia","","kiu","","kio"],
+         nota:"una SOLA sílaba, dicha rápido: «kia», no «ki-ya»."}
+};
+// Casos que no siguen la regla general
+const PRON_ESPECIAL = {
+  // tts: qué darle a una voz española (a secas diría «ene», el nombre de la letra)
+  "ん":{sp:"n", tts:"an", nota:"Nasal al final de sílaba. Cambia según lo que sigue: puede sonar «n», «m» o «ng»."},
+  "ン":{sp:"n", tts:"an", nota:"Nasal al final de sílaba. Cambia según lo que sigue: puede sonar «n», «m» o «ng»."},
+  "を":{sp:"o", nota:"Se escribe «wo» pero se pronuncia «o». Solo se usa como partícula."},
+  "ヲ":{sp:"o", nota:"Se escribe «wo» pero se pronuncia «o». Casi nunca se usa."},
+  "ぢ":{sp:"yi", nota:"Suena igual que じ. Es raro: casi siempre se escribe じ."},
+  "づ":{sp:"zu", nota:"Suena igual que ず. Es raro: casi siempre se escribe ず."}
+};
+
+function splitRomaji(r){
+  const m = /^([a-z]*?)([aiueo])$/.exec(r);
+  return m ? {c:m[1], v:"aiueo".indexOf(m[2])} : null;
+}
+// Devuelve {sp, nota} : cómo suena en español y el aviso si lo hay.
+function pronunciacion(kana, romaji){
+  if(PRON_ESPECIAL[kana]) return PRON_ESPECIAL[kana];
+  const p = splitRomaji(romaji);
+  if(!p) return {sp:romaji, nota:null};
+  const e = ES_SON[p.c];
+  if(!e) return {sp:romaji, nota:null};
+  return {sp: e.sp[p.v] || romaji, nota: e.nota};
+}
+
+/* --- Audio: sintetizador de voz del propio dispositivo (funciona sin internet) ---
+   1º intenta una voz japonesa leyendo el kana (lo ideal).
+   2º si no hay, usa una voz española leyendo la sílaba escrita a la española:
+      las vocales japonesas y españolas son casi iguales, así que sale una
+      aproximación decente. Se avisa que es aproximada. */
+let jaVoice = null, esVoice = null;
+function loadVoices(){
+  if(!("speechSynthesis" in window)) return;
+  const vs = speechSynthesis.getVoices() || [];
+  jaVoice = vs.find(v=>/^ja/i.test(v.lang)) || null;
+  esVoice = vs.find(v=>/^es/i.test(v.lang)) || null;
+}
+if("speechSynthesis" in window){
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+function say(text, voice, rate){
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = voice; u.lang = voice.lang; u.rate = rate;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+// texto = lo que se dice en japonés; alt = cómo aproximarlo con voz española
+function playAudio(texto, alt){
+  const el = document.getElementById("audioMsg");
+  const set = t => { if(el) el.textContent = t; };
+  if(!("speechSynthesis" in window)){ set("🔇 Este navegador no puede reproducir voz."); return; }
+  if(!jaVoice && !esVoice) loadVoices();      // algunos navegadores las cargan tarde
+  if(jaVoice){ say(texto, jaVoice, 0.75); set(""); return; }
+  if(esVoice && alt){
+    say(alt, esVoice, 0.7);
+    set("🔉 Voz aproximada en español (tu equipo no tiene voz japonesa). Fíjate en el aviso de arriba para los sonidos que no existen en español.");
+    return;
+  }
+  set("🔇 Tu dispositivo no tiene voces instaladas; guíate por la pronunciación escrita.");
+}
+// Bloque reutilizable: botón de audio + pronunciación en español
+function bloquePronunciacion(texto, kana, romaji){
+  const p = pronunciacion(kana, romaji);
+  const alt = p.tts || p.sp;
+  return '<div class="pron">'+
+    '<button class="spk" onclick="playAudio(\''+texto+'\',\''+alt+'\')" title="Escuchar">🔊</button>'+
+    '<div><b>Se pronuncia</b> «'+esc(p.sp)+'»'+
+      (p.nota ? '<div class="pron-nota">⚠️ '+esc(p.nota)+'</div>' : '')+
+    '</div></div>'+
+    '<div class="muted" id="audioMsg" style="font-size:13px; text-align:center"></div>';
+}
+
 // Cuenta los trazos de un kana, incluidos compuestos (きゃ) y dakuten (が).
 function strokeCount(s){
   let total = 0;
@@ -564,6 +684,7 @@ function renderTeach(){
       '<div class="kana-hero jp">'+it[0]+'</div>'+
       '<div class="romaji-hero">'+esc(it[1])+'</div>'+
       '<div class="mnemonic">🧠 '+esc(it[2])+'</div>'+
+      bloquePronunciacion(it[0], it[0], it[1])+
       '<div class="center muted">✍️ Practica trazándolo encima de la guía'+
         (need!==null ? ' — son <b>'+need+' trazo'+(need===1?"":"s")+'</b>' : '')+':</div>'+
       '<canvas class="trace" id="trace" width="'+CANVAS_PX+'" height="'+CANVAS_PX+'"></canvas>'+
@@ -583,6 +704,9 @@ function renderTeach(){
       '<div class="kana-hero jp" style="font-size:56px">'+it[0]+'</div>'+
       '<div class="romaji-hero">'+esc(it[1])+'</div>'+
       '<div class="center" style="font-size:22px; font-weight:700">'+esc(it[2])+'</div>'+
+      '<div class="center" style="margin-top:12px">'+
+        '<button class="spk" onclick="playAudio(\''+it[0]+'\',\''+it[1].replace(/ /g,"")+'\')" title="Escuchar">🔊</button></div>'+
+      '<div class="muted" id="audioMsg" style="font-size:13px; text-align:center"></div>'+
       '</div>';
   }
 
@@ -1258,6 +1382,7 @@ function renderPractice(){
   html += '<div class="card center">'+
     '<div class="muted">Escribe en '+script+':</div>'+
     '<div class="romaji-hero" style="font-size:34px">'+esc(k[1])+'</div>'+
+    bloquePronunciacion(ch, ch, k[1])+
     (prac.guide
       ? ''
       : '<div class="muted" style="font-size:13px">Sin guía: el tamaño y la posición no importan, la forma sí. Acierta y ganas +'+XP_REVIEW+' XP.</div>')+
@@ -1308,6 +1433,10 @@ function renderAbout(){
     '<p>Cada símbolo que apruebas entra a un sistema de repaso espaciado: te lo pregunto hoy, mañana, a los 3 días, 7, 14, 30… Si fallas, vuelve al inicio. Así se pasa de "lo vi" a "me lo sé".</p>'+
     '<b>✍️ El trazado</b>'+
     '<p>Traza cada símbolo y pulsa <b>«Revisar ✓»</b>. La calificación es <b>neta</b>: lo que cubriste de la letra <i>menos</i> la tinta que quedó fuera <i>menos</i> la tinta de más si rellenaste en vez de trazar. Ambos castigos se miden contra el tamaño del carácter, así que entre más rayes más caro sale. Se necesita <b>'+Math.round(MIN_NET*100)+'%</b> y el <b>número correcto de trazos</b> (los japoneses cuidan mucho esto).</p>'+
+    '<b>🔊 La pronunciación</b>'+
+    '<p>En cada símbolo verás <b>cómo se escribiría en español</b> para que suene bien, y un aviso cuando el sonido no existe en nuestro idioma (し, つ, ふ, ら, ざ…). El botón 🔊 lo pronuncia usando el sintetizador de tu propio dispositivo, así que funciona sin internet.</p>'+
+    '<p class="muted">Si tu equipo tiene <b>voz japonesa</b>, oirás la pronunciación real. Si no, se usa la <b>voz española</b> leyendo la sílaba a la española: sale una aproximación decente porque nuestras vocales son casi iguales, pero falla justo en los sonidos que no existen en español — para esos, hazle caso al aviso escrito.</p>'+
+    '<p class="muted">Para instalar la voz japonesa en Windows: <i>Configuración → Hora e idioma → Idioma → Agregar idioma → 日本語</i>, y marca «Voz» en las opciones. En Android e iPad casi siempre viene de fábrica.</p>'+
     '<b>🧠 Práctica de escritura</b>'+
     '<p>Repasa cualquier símbolo aprendido cuando quieras, con guía o <b>de memoria</b>: solo con el romaji como pista, dibuja donde y del tamaño que quieras — la app escala tu dibujo y lo compara con la forma real. Cada acierto de memoria da <b>+'+XP_REVIEW+' XP</b>, así que también cuenta para tu racha.</p>'+
     '<p class="muted">La revisión es generosa a propósito: busca el mejor encaje aunque empieces corrido de lugar, y tolera unos milímetros de error para que un lápiz de punta redonda no te perjudique. Normalmente te <i>informa</i> pero te deja avanzar; si activas <b>modo estricto</b>, tendrás que trazarlo bien para continuar.</p>'+
