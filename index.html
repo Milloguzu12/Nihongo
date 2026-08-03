@@ -127,6 +127,16 @@
     padding:10px 14px; margin:10px 0; font-size:16px;
   }
   .pron-nota{font-size:13px; color:var(--sub); margin-top:3px; line-height:1.35;}
+  .ejemplo{
+    background:#eef7ee; border:1px solid #bcdcbc; border-radius:12px;
+    padding:10px 14px; margin:10px 0; text-align:left; font-size:16px;
+  }
+  .ej-lbl{font-size:12px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;}
+  .ej-jp{font-size:24px; font-weight:700;}
+  .solo{
+    background:#f4eefa; border:1px dashed #a98fc4; border-radius:12px;
+    padding:9px 14px; margin:10px 0; text-align:left; font-size:14px; line-height:1.4;
+  }
   .spk{
     flex:none; width:46px; height:46px; border-radius:50%; cursor:pointer;
     border:none; background:var(--red); color:#fff; font-size:21px;
@@ -380,6 +390,122 @@ const STROKES = {
   "ラ":2,"リ":2,"ル":2,"レ":1,"ロ":3,
   "ワ":2,"ヲ":3,"ン":2
 };
+
+/* ===== PALABRAS DE EJEMPLO =====
+   Una palabra real que contiene cada kana: [japonés, romaji, significado]. */
+const EJEMPLO = {
+  // Hiragana básico
+  "あ":["あい","ai","amor"],              "い":["いえ","ie","casa"],
+  "う":["うみ","umi","mar"],              "え":["えき","eki","estación de tren"],
+  "お":["おかね","okane","dinero"],       "か":["かさ","kasa","paraguas"],
+  "き":["きのこ","kinoko","hongo"],       "く":["くつ","kutsu","zapatos"],
+  "け":["けむり","kemuri","humo"],        "こ":["こども","kodomo","niño"],
+  "さ":["さかな","sakana","pez, pescado"],"し":["しお","shio","sal"],
+  "す":["すし","sushi","sushi"],          "せ":["せかい","sekai","mundo"],
+  "そ":["そら","sora","cielo"],           "た":["たまご","tamago","huevo"],
+  "ち":["ちず","chizu","mapa"],           "つ":["つき","tsuki","luna"],
+  "て":["てがみ","tegami","carta"],       "と":["とり","tori","pájaro"],
+  "な":["なつ","natsu","verano"],         "に":["にく","niku","carne"],
+  "ぬ":["いぬ","inu","perro"],            "ね":["ねこ","neko","gato"],
+  "の":["のり","nori","alga (la del sushi)"], "は":["はな","hana","flor"],
+  "ひ":["ひと","hito","persona"],         "ふ":["ふね","fune","barco"],
+  "へ":["へや","heya","habitación"],      "ほ":["ほし","hoshi","estrella"],
+  "ま":["まど","mado","ventana"],         "み":["みず","mizu","agua"],
+  "む":["むし","mushi","insecto"],        "め":["めがね","megane","lentes"],
+  "も":["もの","mono","cosa"],            "や":["やま","yama","montaña"],
+  "ゆ":["ゆき","yuki","nieve"],           "よ":["よる","yoru","noche"],
+  "ら":["さくら","sakura","flor de cerezo"], "り":["りんご","ringo","manzana"],
+  "る":["くるま","kuruma","coche"],       "れ":["これ","kore","esto"],
+  "ろ":["しろ","shiro","blanco"],         "わ":["わたし","watashi","yo"],
+  "を":["みずをのむ","mizu o nomu","beber agua"], "ん":["にほん","nihon","Japón"],
+  // Dakuten y handakuten
+  "が":["めがね","megane","lentes"],      "ぎ":["かぎ","kagi","llave"],
+  "ぐ":["かぐ","kagu","muebles"],         "げ":["げんき","genki","sano, con energía"],
+  "ご":["ごはん","gohan","arroz, comida"],"ざ":["ひざ","hiza","rodilla"],
+  "じ":["じかん","jikan","tiempo, hora"], "ず":["みず","mizu","agua"],
+  "ぜ":["かぜ","kaze","viento, resfriado"],"ぞ":["ぞう","zou","elefante"],
+  "だ":["からだ","karada","cuerpo"],      "ぢ":["はなぢ","hanaji","sangrado de nariz"],
+  "づ":["つづく","tsuzuku","continuar"],  "で":["でんわ","denwa","teléfono"],
+  "ど":["どこ","doko","dónde"],           "ば":["ことば","kotoba","palabra"],
+  "び":["へび","hebi","serpiente"],       "ぶ":["ぶた","buta","cerdo"],
+  "べ":["たべる","taberu","comer"],       "ぼ":["ぼうし","boushi","sombrero"],
+  "ぱ":["かんぱい","kanpai","¡salud! (brindis)"], "ぴ":["ぴかぴか","pikapika","brillante"],
+  "ぷ":["てんぷら","tenpura","tempura"],  "ぺ":["ぺこぺこ","pekopeko","muerto de hambre"],
+  "ぽ":["さんぽ","sanpo","paseo"],
+  // Combinaciones
+  "きゃ":["きゃく","kyaku","cliente, invitado"], "きゅ":["きゅうり","kyuuri","pepino"],
+  "きょ":["きょう","kyou","hoy"],         "しゃ":["でんしゃ","densha","tren"],
+  "しゅ":["しゅみ","shumi","pasatiempo"], "しょ":["しょうゆ","shouyu","salsa de soya"],
+  "ちゃ":["おちゃ","ocha","té"],          "ちゅ":["ちゅうい","chuui","cuidado, atención"],
+  "ちょ":["ちょっと","chotto","un poco"],
+  // Katakana (palabras extranjeras)
+  "ア":["アメリカ","amerika","Estados Unidos"], "イ":["イタリア","itaria","Italia"],
+  "ウ":["ウイルス","uirusu","virus"],     "エ":["エアコン","eakon","aire acondicionado"],
+  "オ":["オレンジ","orenji","naranja"],   "カ":["カメラ","kamera","cámara"],
+  "キ":["キロ","kiro","kilo"],            "ク":["クラス","kurasu","clase"],
+  "ケ":["ケーキ","keeki","pastel"],       "コ":["コーヒー","koohii","café"],
+  "サ":["サラダ","sarada","ensalada"],    "シ":["システム","shisutemu","sistema"],
+  "ス":["スポーツ","supootsu","deportes"],"セ":["セーター","seetaa","suéter"],
+  "ソ":["ソファ","sofa","sofá"],          "タ":["タクシー","takushii","taxi"],
+  "チ":["チーズ","chiizu","queso"],       "ツ":["ツアー","tsuaa","tour, excursión"],
+  "テ":["テレビ","terebi","televisión"],  "ト":["トマト","tomato","tomate"],
+  "ナ":["バナナ","banana","plátano"],     "ニ":["テニス","tenisu","tenis"],
+  "ヌ":["カヌー","kanuu","canoa"],        "ネ":["ネクタイ","nekutai","corbata"],
+  "ノ":["ノート","nooto","cuaderno"],     "ハ":["ハンバーガー","hanbaagaa","hamburguesa"],
+  "ヒ":["コーヒー","koohii","café"],      "フ":["フランス","furansu","Francia"],
+  "ヘ":["ヘリコプター","herikoputaa","helicóptero"], "ホ":["ホテル","hoteru","hotel"],
+  "マ":["マンガ","manga","manga, cómic"], "ミ":["ミルク","miruku","leche"],
+  "ム":["ゲーム","geemu","videojuego"],   "メ":["メール","meeru","correo electrónico"],
+  "モ":["メモ","memo","nota, apunte"],    "ヤ":["タイヤ","taiya","llanta"],
+  "ユ":["ユーロ","yuuro","euro"],         "ヨ":["ヨーグルト","yooguruto","yogurt"],
+  "ラ":["ラジオ","rajio","radio"],        "リ":["リモコン","rimokon","control remoto"],
+  "ル":["ルール","ruuru","regla"],        "レ":["レストラン","resutoran","restaurante"],
+  "ロ":["ロシア","roshia","Rusia"],       "ワ":["ワイン","wain","vino"],
+  "ン":["パン","pan","pan"]
+  // ヲ no lleva ejemplo: prácticamente no se usa en japonés moderno.
+};
+
+/* Kana que por sí solos ya son una palabra. En la vida real se escriben con
+   kanji (el del paréntesis), pero se pronuncian exactamente como ese kana. */
+const KANA_SOLA = {
+  "え":"dibujo, cuadro (絵)", "か":"mosquito (蚊)",  "き":"árbol (木)",
+  "け":"pelo (毛)",           "こ":"niño, hijo (子)", "ち":"sangre (血)",
+  "て":"mano (手)",           "と":"puerta (戸)",
+  "ね":"raíz (根)",           "は":"diente (歯) · hoja (葉)",
+  "ひ":"sol, día (日) · fuego (火)", "ま":"espacio, rato (間)",
+  "み":"fruto (実)",          "め":"ojo (目)",       "ゆ":"agua caliente (湯)",
+  "わ":"aro, círculo (輪)",   "す":"nido (巣)",      "せ":"espalda (背)",
+  "た":"campo de arroz (田)", "ご":"cinco (五)",     "じ":"letra, carácter (字)"
+};
+
+/* Partículas: kana sueltos con función gramatical, no con significado propio. */
+const KANA_PARTICULA = {
+  "は":"Como partícula marca el tema de la frase, y entonces se lee «wa».",
+  "を":"Solo se usa como partícula: marca el objeto directo. Se lee «o».",
+  "へ":"Como partícula indica dirección («hacia»), y entonces se lee «e».",
+  "の":"Como partícula indica posesión, como el «de» del español.",
+  "も":"Como partícula significa «también»."
+};
+
+// Palabra de ejemplo + aviso si el kana solo ya es palabra o partícula
+function bloqueSignificado(kana){
+  let h = "";
+  const e = EJEMPLO[kana];
+  if(e){
+    h += '<div class="ejemplo">'+
+         '<div class="ej-lbl">📖 Palabra de ejemplo</div>'+
+         '<div><span class="jp ej-jp">'+e[0]+'</span> '+
+         '<span class="muted">('+esc(e[1])+')</span> — <b>'+esc(e[2])+'</b></div></div>';
+  }
+  const s = KANA_SOLA[kana], p = KANA_PARTICULA[kana];
+  if(s || p){
+    h += '<div class="solo">✨ <b class="jp">'+kana+'</b> por sí sola'+
+         (s ? ' ya es una palabra: <b>'+esc(s)+'</b>' : '')+
+         (s && p ? '<br>' : '')+
+         (p ? (s?'':' ')+esc(p) : '')+'</div>';
+  }
+  return h;
+}
 
 /* ===== PRONUNCIACIÓN =====
    Cómo escribirías cada sílaba en español para que suene bien, más una nota
@@ -683,8 +809,9 @@ function renderTeach(){
     html += '<div class="card">'+
       '<div class="kana-hero jp">'+it[0]+'</div>'+
       '<div class="romaji-hero">'+esc(it[1])+'</div>'+
-      '<div class="mnemonic">🧠 '+esc(it[2])+'</div>'+
+      '<div class="mnemonic"><b>🧠 Truco para el trazo:</b> '+esc(it[2])+'</div>'+
       bloquePronunciacion(it[0], it[0], it[1])+
+      bloqueSignificado(it[0])+
       '<div class="center muted">✍️ Practica trazándolo encima de la guía'+
         (need!==null ? ' — son <b>'+need+' trazo'+(need===1?"":"s")+'</b>' : '')+':</div>'+
       '<canvas class="trace" id="trace" width="'+CANVAS_PX+'" height="'+CANVAS_PX+'"></canvas>'+
@@ -1092,6 +1219,8 @@ function checkTrace(){
     // Revela la guía debajo de tu dibujo para que compares
     drawGuide();
     redrawInk();
+    const rev = document.getElementById("revelado");
+    if(rev) rev.innerHTML = bloqueSignificado(traceChar);
     if(formaOk && trazosOk && !pracScored){
       pracScored = true;
       addXp(XP_REVIEW);
@@ -1383,8 +1512,10 @@ function renderPractice(){
     '<div class="muted">Escribe en '+script+':</div>'+
     '<div class="romaji-hero" style="font-size:34px">'+esc(k[1])+'</div>'+
     bloquePronunciacion(ch, ch, k[1])+
+    // La palabra de ejemplo contiene el kana, así que en modo memoria se oculta
+    // para no delatar la respuesta; aparece al revisar.
     (prac.guide
-      ? ''
+      ? bloqueSignificado(ch)
       : '<div class="muted" style="font-size:13px">Sin guía: el tamaño y la posición no importan, la forma sí. Acierta y ganas +'+XP_REVIEW+' XP.</div>')+
     '<canvas class="trace" id="trace" width="'+CANVAS_PX+'" height="'+CANVAS_PX+'"></canvas>'+
     '<div class="center" id="strokeCount" style="font-size:15px; color:var(--sub)"></div>'+
@@ -1393,6 +1524,7 @@ function renderPractice(){
       '<button class="btn" style="flex:1" onclick="checkTrace()">Revisar ✓</button>'+
     '</div>'+
     '<div class="feedback" id="traceFb" style="font-size:15px"></div>'+
+    '<div id="revelado"></div>'+
     '</div>';
 
   html += '<div style="display:flex; gap:10px">'+
