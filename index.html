@@ -84,6 +84,7 @@
   canvas.trace{
     display:block; margin:10px auto; background:#fff; border:2px dashed var(--line);
     border-radius:14px; touch-action:none; cursor:crosshair;
+    width:260px; height:260px; max-width:100%; aspect-ratio:1/1;
   }
   .options{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
   .opt{
@@ -341,6 +342,44 @@ const LESSONS = [
 
 const KANA_ALL = HIRAGANA_BASE.concat(HIRAGANA_DAKUTEN, HIRAGANA_COMBO, KATAKANA_BASE);
 const KANA_MAP = {}; KANA_ALL.forEach(k=>KANA_MAP[k[0]]=k);
+
+/* Número de trazos estándar (筆順). Los kana con dakuten no se listan:
+   se descomponen con NFD y se suman ゛=2 trazos, ゜=1 trazo. */
+const STROKES = {
+  "あ":3,"い":2,"う":2,"え":2,"お":3,
+  "か":3,"き":4,"く":1,"け":3,"こ":2,
+  "さ":3,"し":1,"す":2,"せ":3,"そ":1,
+  "た":4,"ち":2,"つ":1,"て":1,"と":2,
+  "な":4,"に":3,"ぬ":2,"ね":2,"の":1,
+  "は":3,"ひ":1,"ふ":4,"へ":1,"ほ":4,
+  "ま":3,"み":2,"む":3,"め":2,"も":3,
+  "や":3,"ゆ":2,"よ":2,
+  "ら":2,"り":2,"る":1,"れ":2,"ろ":1,
+  "わ":2,"を":3,"ん":1,
+  "ゃ":3,"ゅ":2,"ょ":2,
+  "ア":2,"イ":2,"ウ":3,"エ":3,"オ":3,
+  "カ":2,"キ":3,"ク":2,"ケ":3,"コ":2,
+  "サ":3,"シ":3,"ス":2,"セ":2,"ソ":2,
+  "タ":3,"チ":3,"ツ":3,"テ":3,"ト":2,
+  "ナ":2,"ニ":2,"ヌ":2,"ネ":4,"ノ":1,
+  "ハ":2,"ヒ":2,"フ":1,"ヘ":1,"ホ":4,
+  "マ":2,"ミ":3,"ム":2,"メ":2,"モ":3,
+  "ヤ":2,"ユ":2,"ヨ":3,
+  "ラ":2,"リ":2,"ル":2,"レ":1,"ロ":3,
+  "ワ":2,"ヲ":3,"ン":2
+};
+
+// Cuenta los trazos de un kana, incluidos compuestos (きゃ) y dakuten (が).
+function strokeCount(s){
+  let total = 0;
+  for(const ch of s.normalize("NFD")){
+    if(ch === "゙"){ total += 2; continue; }  // ゛ dakuten
+    if(ch === "゚"){ total += 1; continue; }  // ゜ handakuten
+    if(STROKES[ch] === undefined) return null;    // desconocido: no evaluamos
+    total += STROKES[ch];
+  }
+  return total;
+}
 const WORD_ALL = [].concat(WORDS.v1,WORDS.v2,WORDS.v3,WORDS.v4,WORDS.v5);
 const WORD_MAP = {}; WORD_ALL.forEach(w=>WORD_MAP[w[0]]=w);
 
@@ -355,7 +394,8 @@ let state = {
   completed:{},        // lessonId -> true
   srs:{},              // itemId -> {t:'k'|'w', box:n, due:timestamp}
   streak:0, lastStreakDay:null,
-  xpDay:null, xpToday:0, totalXp:0
+  xpDay:null, xpToday:0, totalXp:0,
+  strict:false         // modo estricto del trazado
 };
 
 function save(){ try{ localStorage.setItem("nihongoState", JSON.stringify(state)); }catch(e){} }
@@ -512,13 +552,24 @@ function renderTeach(){
   if(i===0 && L.note){ html += '<div class="note">💡 '+esc(L.note)+'</div>'; }
 
   if(L.kana){
+    const need = strokeCount(it[0]);
     html += '<div class="card">'+
       '<div class="kana-hero jp">'+it[0]+'</div>'+
       '<div class="romaji-hero">'+esc(it[1])+'</div>'+
       '<div class="mnemonic">🧠 '+esc(it[2])+'</div>'+
-      '<div class="center muted">✍️ Practica trazándolo encima de la guía:</div>'+
-      '<canvas class="trace" id="trace" width="220" height="220"></canvas>'+
-      '<div class="center"><button class="btn sec" onclick="clearTrace()">Borrar trazo</button></div>'+
+      '<div class="center muted">✍️ Practica trazándolo encima de la guía'+
+        (need!==null ? ' — son <b>'+need+' trazo'+(need===1?"":"s")+'</b>' : '')+':</div>'+
+      '<canvas class="trace" id="trace" width="'+CANVAS_PX+'" height="'+CANVAS_PX+'"></canvas>'+
+      '<div class="center" id="strokeCount" style="font-size:15px; color:var(--sub)"></div>'+
+      '<div style="display:flex; gap:8px; margin-top:10px">'+
+        '<button class="btn sec" style="flex:1" onclick="clearTrace()">Borrar</button>'+
+        '<button class="btn sec" style="flex:1" onclick="checkTrace()">Revisar ✓</button>'+
+      '</div>'+
+      '<div class="feedback" id="traceFb" style="font-size:15px"></div>'+
+      '<div class="center" style="margin-top:6px">'+
+        '<label class="muted" style="cursor:pointer; font-size:14px">'+
+        '<input type="checkbox" onchange="toggleStrict()" '+(state.strict?"checked":"")+'> '+
+        'Modo estricto (no avanzar hasta trazarlo bien)</label></div>'+
       '</div>';
   } else {
     html += '<div class="card">'+
@@ -528,14 +579,17 @@ function renderTeach(){
       '</div>';
   }
 
+  // En modo estricto el avance se bloquea hasta que el trazo pase (solo en kana).
+  const lock = L.kana && state.strict ? ' disabled' : '';
   html += '<div style="display:flex; gap:10px; margin-top:10px">';
   if(i>0) html += '<button class="btn sec" style="flex:1" onclick="cur.idx--; renderTeach()">← Anterior</button>';
   if(i < items.length-1){
-    html += '<button class="btn" style="flex:2" onclick="cur.idx++; renderTeach()">Siguiente →</button>';
+    html += '<button class="btn" id="nextBtn" style="flex:2" onclick="cur.idx++; renderTeach()"'+lock+'>Siguiente →</button>';
   } else {
-    html += '<button class="btn green" style="flex:2" onclick="startQuiz()">¡Al quiz! ✏️</button>';
+    html += '<button class="btn green" id="nextBtn" style="flex:2" onclick="startQuiz()"'+lock+'>¡Al quiz! ✏️</button>';
   }
   html += '</div>';
+  if(lock) html += '<p class="center muted" style="font-size:13px">🔒 Modo estricto: traza la letra y pulsa «Revisar ✓» para desbloquear.</p>';
   html += '<p class="center muted">'+(i+1)+' de '+items.length+'</p>';
 
   app.innerHTML = html;
@@ -543,51 +597,265 @@ function renderTeach(){
   if(L.kana) initTrace(it[0]);
 }
 
-/* --- Canvas de trazado --- */
+/* --- Canvas de trazado y evaluación --- */
+
+const CANVAS_PX  = 260;   // resolución del canvas visible
+const BRUSH      = 8;     // grosor del trazo del usuario
+const AN         = 110;   // resolución a la que se analiza (más chico = más rápido)
+const TOL        = 3;     // tolerancia en píxeles de análisis (~7px reales)
+                          // Calibrado con trazos simulados: con 3, trazar la línea
+                          // central da 76-100% de cobertura incluso con pulso tembloroso,
+                          // pero un garabato al azar se queda por debajo del 60%.
+const SEARCH     = 10;    // busca el mejor encaje desplazando ±10 px de análisis
+const MIN_COVER  = 0.60;  // hay que cubrir el 60% de la letra
+const MIN_INSIDE = 0.50;  // y al menos el 50% de tu tinta debe caer sobre ella
+
 let traceCtx = null, traceChar = "", drawing = false;
+let strokes = [];         // [[{x,y},...], ...] un arreglo por trazo
+let guideField = null;    // distancia de cada píxel a la letra guía
 
 function drawGuide(){
   const c = document.getElementById("trace");
+  if(!c) return;
   const ctx = c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
   ctx.fillStyle = "#efe8da";
-  const size = traceChar.length > 1 ? 110 : 170;
-  ctx.font = size+'px "Yu Gothic","Meiryo",sans-serif';
+  ctx.font = glyphFont();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(traceChar, c.width/2, c.height/2 + 8);
 }
+function glyphFont(){
+  const size = traceChar.length > 1 ? 130 : 200;
+  return size+'px "Yu Gothic","Meiryo",sans-serif';
+}
+function redrawInk(){
+  const c = document.getElementById("trace");
+  if(!c) return;
+  const ctx = c.getContext("2d");
+  ctx.strokeStyle = "#c93b3b";
+  ctx.lineWidth = BRUSH;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  strokes.forEach(st=>{
+    if(st.length < 2) {
+      // un toque suelto: dibuja un punto para que se vea
+      ctx.beginPath(); ctx.arc(st[0].x, st[0].y, BRUSH/2, 0, 6.284);
+      ctx.fillStyle = "#c93b3b"; ctx.fill();
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(st[0].x, st[0].y);
+    for(let i=1;i<st.length;i++) ctx.lineTo(st[i].x, st[i].y);
+    ctx.stroke();
+  });
+}
+
+/* Máscara binaria (a resolución AN) de lo que se dibuje en un canvas oculto */
+function maskFrom(drawFn){
+  const off = document.createElement("canvas");
+  off.width = AN; off.height = AN;
+  const g = off.getContext("2d");
+  g.scale(AN/CANVAS_PX, AN/CANVAS_PX);
+  drawFn(g);
+  const px = g.getImageData(0,0,AN,AN).data;
+  const m = new Uint8Array(AN*AN);
+  for(let i=0;i<AN*AN;i++) m[i] = px[i*4+3] > 40 ? 1 : 0;   // alfa > 40 = hay tinta
+  return m;
+}
+
+/* Transformada de distancia (chamfer, dos pasadas):
+   devuelve para cada píxel la distancia al píxel encendido más cercano. */
+function distanceField(mask){
+  const INF = 1e9, d = new Float32Array(AN*AN);
+  for(let i=0;i<AN*AN;i++) d[i] = mask[i] ? 0 : INF;
+  for(let y=0;y<AN;y++) for(let x=0;x<AN;x++){
+    const i=y*AN+x; let v=d[i];
+    if(x>0)            v=Math.min(v, d[i-1]+1);
+    if(y>0)            v=Math.min(v, d[i-AN]+1);
+    if(x>0   && y>0)   v=Math.min(v, d[i-AN-1]+1.414);
+    if(x<AN-1&& y>0)   v=Math.min(v, d[i-AN+1]+1.414);
+    d[i]=v;
+  }
+  for(let y=AN-1;y>=0;y--) for(let x=AN-1;x>=0;x--){
+    const i=y*AN+x; let v=d[i];
+    if(x<AN-1)           v=Math.min(v, d[i+1]+1);
+    if(y<AN-1)           v=Math.min(v, d[i+AN]+1);
+    if(x<AN-1&&y<AN-1)   v=Math.min(v, d[i+AN+1]+1.414);
+    if(x>0   &&y<AN-1)   v=Math.min(v, d[i+AN-1]+1.414);
+    d[i]=v;
+  }
+  return d;
+}
+
+function buildGuideField(){
+  const gm = maskFrom(g=>{
+    g.fillStyle = "#000";
+    g.font = glyphFont();
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(traceChar, CANVAS_PX/2, CANVAS_PX/2 + 8);
+  });
+  guideField = {mask:gm, field:distanceField(gm), count:gm.reduce((a,b)=>a+b,0)};
+}
+
+/* Compara tu tinta contra la guía probando pequeños desplazamientos,
+   para no castigarte por empezar un poco corrido de lugar. */
+function scoreTrace(){
+  if(!strokes.length || !guideField || !guideField.count) return null;
+  const im = maskFrom(g=>{
+    g.strokeStyle="#000"; g.fillStyle="#000";
+    g.lineWidth=BRUSH; g.lineCap="round"; g.lineJoin="round";
+    strokes.forEach(st=>{
+      if(st.length<2){ g.beginPath(); g.arc(st[0].x,st[0].y,BRUSH/2,0,6.284); g.fill(); return; }
+      g.beginPath(); g.moveTo(st[0].x,st[0].y);
+      for(let i=1;i<st.length;i++) g.lineTo(st[i].x,st[i].y);
+      g.stroke();
+    });
+  });
+  let inkCount = 0;
+  for(let i=0;i<im.length;i++) inkCount += im[i];
+  if(!inkCount) return null;
+
+  const inkField = distanceField(im);
+  const gField = guideField.field, gMask = guideField.mask;
+  let best = {cover:0, inside:0, sum:-1};
+
+  for(let dy=-SEARCH; dy<=SEARCH; dy+=2){
+    for(let dx=-SEARCH; dx<=SEARCH; dx+=2){
+      let covered = 0, inside = 0;
+      for(let y=0;y<AN;y++){
+        const sy = y - dy;
+        if(sy<0 || sy>=AN) continue;
+        for(let x=0;x<AN;x++){
+          const i = y*AN+x;
+          const sx = x - dx;
+          if(sx<0 || sx>=AN) continue;
+          // ¿la letra está cubierta por tinta desplazada?
+          if(gMask[i] && inkField[sy*AN+sx] <= TOL) covered++;
+          // ¿la tinta desplazada cae sobre la letra?
+          if(im[i]){
+            const ty = y+dy, tx = x+dx;
+            if(ty>=0 && ty<AN && tx>=0 && tx<AN && gField[ty*AN+tx] <= TOL) inside++;
+          }
+        }
+      }
+      const cover = covered/guideField.count, ins = inside/inkCount;
+      if(cover + ins > best.sum) best = {cover:cover, inside:ins, sum:cover+ins};
+    }
+  }
+  return best;
+}
+
 function initTrace(ch){
   traceChar = ch;
+  strokes = [];
   const c = document.getElementById("trace");
   if(!c) return;
   traceCtx = c.getContext("2d");
   drawGuide();
+  buildGuideField();
+  updateStrokeCounter();
+
   const pos = ev => {
     const r = c.getBoundingClientRect();
-    return [ (ev.clientX - r.left) * c.width / r.width,
-             (ev.clientY - r.top) * c.height / r.height ];
+    return { x:(ev.clientX - r.left) * c.width / r.width,
+             y:(ev.clientY - r.top)  * c.height / r.height };
   };
   c.onpointerdown = ev => {
+    ev.preventDefault();
     drawing = true;
     c.setPointerCapture(ev.pointerId);
-    const [x,y] = pos(ev);
+    strokes.push([pos(ev)]);
     traceCtx.beginPath();
-    traceCtx.moveTo(x,y);
+    traceCtx.moveTo(strokes[strokes.length-1][0].x, strokes[strokes.length-1][0].y);
+    updateStrokeCounter();
   };
   c.onpointermove = ev => {
     if(!drawing) return;
-    const [x,y] = pos(ev);
-    traceCtx.lineTo(x,y);
+    ev.preventDefault();
+    const p = pos(ev);
+    strokes[strokes.length-1].push(p);
+    traceCtx.lineTo(p.x, p.y);
     traceCtx.strokeStyle = "#c93b3b";
-    traceCtx.lineWidth = 7;
+    traceCtx.lineWidth = BRUSH;
     traceCtx.lineCap = "round";
     traceCtx.lineJoin = "round";
     traceCtx.stroke();
   };
-  c.onpointerup = () => { drawing = false; };
+  c.onpointerup = c.onpointercancel = () => { drawing = false; };
 }
-function clearTrace(){ drawGuide(); }
+
+function clearTrace(){
+  strokes = [];
+  drawGuide();
+  updateStrokeCounter();
+  const fb = document.getElementById("traceFb");
+  if(fb){ fb.textContent = ""; fb.className = "feedback"; }
+  setNextEnabled(!state.strict);
+}
+
+function updateStrokeCounter(){
+  const el = document.getElementById("strokeCount");
+  if(!el) return;
+  const need = strokeCount(traceChar);
+  const have = strokes.length;
+  if(need === null){ el.textContent = "Trazos: " + have; return; }
+  const ok = have === need;
+  el.innerHTML = 'Trazos: <b style="color:'+(ok?"var(--green)":"var(--sub)")+'">'+have+'</b> de '+need +
+                 (ok ? ' <span style="color:var(--green)">✓</span>' : '');
+}
+
+function setNextEnabled(on){
+  const b = document.getElementById("nextBtn");
+  if(b) b.disabled = !on;
+}
+
+function checkTrace(){
+  const fb = document.getElementById("traceFb");
+  if(!fb) return;
+  const need = strokeCount(traceChar);
+  const have = strokes.length;
+
+  if(!strokes.length){
+    fb.textContent = "Aún no has trazado nada ✍️";
+    fb.className = "feedback no";
+    return;
+  }
+
+  const s = scoreTrace();
+  if(!s){ fb.textContent = "No pude leer el trazo, inténtalo de nuevo."; fb.className="feedback no"; return; }
+
+  const cover = Math.round(s.cover*100), inside = Math.round(s.inside*100);
+  const formaOk   = s.cover >= MIN_COVER && s.inside >= MIN_INSIDE;
+  const trazosOk  = (need === null) || (have === need);
+
+  let msg, cls;
+  if(formaOk && trazosOk){
+    msg = "¡Muy bien! 🎉 Cubriste el "+cover+"% de la letra" + (need!==null ? " con los "+need+" trazos correctos." : ".");
+    cls = "feedback ok";
+  } else if(formaOk && !trazosOk){
+    msg = "La forma quedó bien ("+cover+"%), pero "+traceChar+" se escribe con "+need+
+          " trazo"+(need===1?"":"s")+" y tú hiciste "+have+". Levanta el lápiz entre trazo y trazo.";
+    cls = "feedback no";
+  } else if(s.cover < MIN_COVER){
+    msg = "Te faltó letra: cubriste el "+cover+"% y se necesita "+Math.round(MIN_COVER*100)+"%. Repasa la guía completa.";
+    cls = "feedback no";
+  } else {
+    msg = "Te saliste bastante de la guía (solo el "+inside+"% de tu trazo cayó encima). Ve más despacio.";
+    cls = "feedback no";
+  }
+  fb.textContent = msg;
+  fb.className = cls;
+
+  if(state.strict) setNextEnabled(formaOk && trazosOk);
+}
+
+function toggleStrict(){
+  state.strict = !state.strict;
+  save();
+  renderTeach();
+}
 
 /* ================= QUIZ DE LECCIÓN ================= */
 
@@ -845,8 +1113,10 @@ function renderAbout(){
     '<p>Gana <b>'+XP_GOAL+' XP al día</b> para mantenerla: una lección ('+XP_LESSON+' XP) o '+(XP_GOAL/XP_REVIEW)+' repasos correctos. Con 5 minutos diarios basta — la constancia le gana a las sesiones largas.</p>'+
     '<b>📬 Los repasos</b>'+
     '<p>Cada símbolo que apruebas entra a un sistema de repaso espaciado: te lo pregunto hoy, mañana, a los 3 días, 7, 14, 30… Si fallas, vuelve al inicio. Así se pasa de "lo vi" a "me lo sé".</p>'+
-    '<b>✍️ Consejo</b>'+
-    '<p>Traza cada símbolo con el dedo o el mouse cuando lo aprendas. Escribir activa otra parte de la memoria que solo mirar no activa.</p>'+
+    '<b>✍️ El trazado</b>'+
+    '<p>Traza cada símbolo y pulsa <b>«Revisar ✓»</b>. Se revisan dos cosas: que cubras al menos el <b>'+Math.round(MIN_COVER*100)+'%</b> de la letra sin salirte demasiado, y que uses el <b>número correcto de trazos</b> (los japoneses cuidan mucho esto).</p>'+
+    '<p class="muted">La revisión es generosa a propósito: busca el mejor encaje aunque empieces corrido de lugar, y tolera unos milímetros de error para que un lápiz de punta redonda no te perjudique. Normalmente te <i>informa</i> pero te deja avanzar; si activas <b>modo estricto</b>, tendrás que trazarlo bien para continuar.</p>'+
+    '<p class="muted">Ojo: algunas tipografías dibujan き y さ con la parte de abajo pegada, pero a mano se escriben con 4 y 3 trazos.</p>'+
     '</div>';
   html += '<div class="card">'+
     '<b>💾 Respaldar / pasar tu progreso a otro dispositivo</b>'+
