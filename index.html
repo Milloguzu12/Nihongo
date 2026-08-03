@@ -505,6 +505,13 @@ function renderHome(){
     html += '<div class="card center muted">✨ No tienes repasos pendientes por ahora. ¡Sigue con la siguiente lección!</div>';
   }
 
+  if(learnedKanaList().length > 0){
+    html += '<div class="lesson-row" onclick="renderPractice()">'+
+      '<div class="badge" style="background:var(--gold)">✍️</div>'+
+      '<div><div class="t">Práctica de escritura</div>'+
+      '<div class="s">Traza lo que ya aprendiste — con guía o de memoria (+'+XP_REVIEW+' XP por acierto)</div></div></div>';
+  }
+
   // Lista de lecciones
   let unlocked = true;
   let lastSec = "";
@@ -606,13 +613,21 @@ const TOL        = 3;     // tolerancia en píxeles de análisis (~7px reales)
                           // Calibrado con trazos simulados: con 3, trazar la línea
                           // central da 76-100% de cobertura incluso con pulso tembloroso,
                           // pero un garabato al azar se queda por debajo del 60%.
+const TOL_MEM    = 4;     // tolerancia al dibujar de memoria (algo más generosa)
 const SEARCH     = 10;    // busca el mejor encaje desplazando ±10 px de análisis
-const MIN_COVER  = 0.60;  // hay que cubrir el 60% de la letra
-const MIN_INSIDE = 0.50;  // y al menos el 50% de tu tinta debe caer sobre ella
+const MIN_NET    = 0.60;  // calificación neta mínima con guía
+const MIN_NET_MEM= 0.55;  // calificación neta mínima de memoria
+const OUT_W      = 1.3;   // peso de la tinta que queda fuera de la letra
+                          // neto = cobertura − OUT_W·(fracción de tinta fuera)
+                          // Calibrado: con 1.0 el truco de «línea bien + rayones por
+                          // todos lados» aprobaba 3/126; con 1.3 aprueba 0/126 y el
+                          // trazo legítimo tembloroso sigue pasando 126/126 (peor: 85%).
 
 let traceCtx = null, traceChar = "", drawing = false;
 let strokes = [];         // [[{x,y},...], ...] un arreglo por trazo
 let guideField = null;    // distancia de cada píxel a la letra guía
+let guideVisible = true;  // false en práctica «de memoria»
+let pracScored = false;   // evita cobrar XP dos veces por el mismo dibujo
 
 function drawGuide(){
   const c = document.getElementById("trace");
@@ -696,17 +711,27 @@ function buildGuideField(){
     g.textBaseline = "middle";
     g.fillText(traceChar, CANVAS_PX/2, CANVAS_PX/2 + 8);
   });
-  guideField = {mask:gm, field:distanceField(gm), count:gm.reduce((a,b)=>a+b,0)};
+  let minx=AN, miny=AN, maxx=0, maxy=0, count=0;
+  for(let y=0;y<AN;y++) for(let x=0;x<AN;x++){
+    if(gm[y*AN+x]){
+      count++;
+      if(x<minx)minx=x; if(x>maxx)maxx=x;
+      if(y<miny)miny=y; if(y>maxy)maxy=y;
+    }
+  }
+  const f = CANVAS_PX/AN;   // caja de la letra en píxeles del canvas
+  guideField = {mask:gm, field:distanceField(gm), count:count,
+                bbox:{minx:minx*f, miny:miny*f, maxx:maxx*f, maxy:maxy*f}};
 }
 
-/* Compara tu tinta contra la guía probando pequeños desplazamientos,
+/* Compara tinta contra la guía probando pequeños desplazamientos,
    para no castigarte por empezar un poco corrido de lugar. */
-function scoreTrace(){
-  if(!strokes.length || !guideField || !guideField.count) return null;
+function scoreStrokes(sts, tol){
+  if(!sts.length || !guideField || !guideField.count) return null;
   const im = maskFrom(g=>{
     g.strokeStyle="#000"; g.fillStyle="#000";
     g.lineWidth=BRUSH; g.lineCap="round"; g.lineJoin="round";
-    strokes.forEach(st=>{
+    sts.forEach(st=>{
       if(st.length<2){ g.beginPath(); g.arc(st[0].x,st[0].y,BRUSH/2,0,6.284); g.fill(); return; }
       g.beginPath(); g.moveTo(st[0].x,st[0].y);
       for(let i=1;i<st.length;i++) g.lineTo(st[i].x,st[i].y);
@@ -732,11 +757,11 @@ function scoreTrace(){
           const sx = x - dx;
           if(sx<0 || sx>=AN) continue;
           // ¿la letra está cubierta por tinta desplazada?
-          if(gMask[i] && inkField[sy*AN+sx] <= TOL) covered++;
+          if(gMask[i] && inkField[sy*AN+sx] <= tol) covered++;
           // ¿la tinta desplazada cae sobre la letra?
           if(im[i]){
             const ty = y+dy, tx = x+dx;
-            if(ty>=0 && ty<AN && tx>=0 && tx<AN && gField[ty*AN+tx] <= TOL) inside++;
+            if(ty>=0 && ty<AN && tx>=0 && tx<AN && gField[ty*AN+tx] <= tol) inside++;
           }
         }
       }
@@ -746,14 +771,47 @@ function scoreTrace(){
   }
   return best;
 }
+function scoreTrace(){ return scoreStrokes(strokes, TOL); }
 
-function initTrace(ch){
+/* Para el modo «de memoria»: escala y centra tu dibujo a la caja de la
+   letra real, para que el tamaño y la posición no importen — solo la forma. */
+function inkBBox(){
+  let minx=1e9, miny=1e9, maxx=-1e9, maxy=-1e9;
+  strokes.forEach(st=>st.forEach(p=>{
+    if(p.x<minx)minx=p.x; if(p.x>maxx)maxx=p.x;
+    if(p.y<miny)miny=p.y; if(p.y>maxy)maxy=p.y;
+  }));
+  return {minx:minx, miny:miny, maxx:maxx, maxy:maxy};
+}
+function normalizeInk(){
+  const gb = guideField.bbox;
+  const ib = inkBBox();
+  const iw = ib.maxx-ib.minx, ih = ib.maxy-ib.miny;
+  const gw = gb.maxx-gb.minx, gh = gb.maxy-gb.miny;
+  if(Math.max(iw,ih) < 60 || Math.min(iw,ih) < 15){
+    return {err:"Dibuja el carácter más grande para poder evaluarlo."};
+  }
+  const aspect = (iw/ih)/(gw/gh);
+  if(aspect > 2.3 || aspect < 1/2.3){
+    return {err:"La proporción no coincide: tu dibujo quedó demasiado "+(aspect>1?"ancho":"alto")+" para "+traceChar+"."};
+  }
+  const sx = gw/iw, sy = gh/ih;
+  return {strokes: strokes.map(st=>st.map(p=>({
+    x: gb.minx + (p.x-ib.minx)*sx,
+    y: gb.miny + (p.y-ib.miny)*sy
+  })))};
+}
+
+function initTrace(ch, showGuide){
   traceChar = ch;
   strokes = [];
+  guideVisible = showGuide !== false;
+  pracScored = false;
   const c = document.getElementById("trace");
   if(!c) return;
   traceCtx = c.getContext("2d");
-  drawGuide();
+  if(guideVisible) drawGuide();
+  else traceCtx.clearRect(0,0,c.width,c.height);
   buildGuideField();
   updateStrokeCounter();
 
@@ -788,7 +846,12 @@ function initTrace(ch){
 
 function clearTrace(){
   strokes = [];
-  drawGuide();
+  pracScored = false;
+  const c = document.getElementById("trace");
+  if(c){
+    if(guideVisible) drawGuide();
+    else c.getContext("2d").clearRect(0,0,c.width,c.height);
+  }
   updateStrokeCounter();
   const fb = document.getElementById("traceFb");
   if(fb){ fb.textContent = ""; fb.className = "feedback"; }
@@ -823,32 +886,60 @@ function checkTrace(){
     return;
   }
 
-  const s = scoreTrace();
+  let s, minNet;
+  if(guideVisible){
+    s = scoreTrace();
+    minNet = MIN_NET;
+  } else {
+    const n = normalizeInk();
+    if(n.err){ fb.textContent = n.err; fb.className = "feedback no"; return; }
+    s = scoreStrokes(n.strokes, TOL_MEM);
+    minNet = MIN_NET_MEM;
+  }
   if(!s){ fb.textContent = "No pude leer el trazo, inténtalo de nuevo."; fb.className="feedback no"; return; }
 
-  const cover = Math.round(s.cover*100), inside = Math.round(s.inside*100);
-  const formaOk   = s.cover >= MIN_COVER && s.inside >= MIN_INSIDE;
-  const trazosOk  = (need === null) || (have === need);
+  // Calificación neta: lo que cubriste de la letra MENOS lo que pintaste fuera.
+  const neto  = Math.max(0, s.cover - OUT_W*(1 - s.inside));
+  const netoP = Math.round(neto*100);
+  const cover = Math.round(s.cover*100);
+  const fuera = Math.round((1 - s.inside)*100);
+  const formaOk  = neto >= minNet;
+  const trazosOk = (need === null) || (have === need);
 
   let msg, cls;
   if(formaOk && trazosOk){
-    msg = "¡Muy bien! 🎉 Cubriste el "+cover+"% de la letra" + (need!==null ? " con los "+need+" trazos correctos." : ".");
+    msg = "¡Muy bien! 🎉 Forma: "+netoP+"% (cubriste "+cover+"%, fuera "+fuera+"%)" +
+          (need!==null ? " · "+need+" trazo"+(need===1?"":"s")+" ✓" : "");
     cls = "feedback ok";
   } else if(formaOk && !trazosOk){
-    msg = "La forma quedó bien ("+cover+"%), pero "+traceChar+" se escribe con "+need+
+    msg = "La forma quedó bien ("+netoP+"%), pero "+traceChar+" se escribe con "+need+
           " trazo"+(need===1?"":"s")+" y tú hiciste "+have+". Levanta el lápiz entre trazo y trazo.";
     cls = "feedback no";
-  } else if(s.cover < MIN_COVER){
-    msg = "Te faltó letra: cubriste el "+cover+"% y se necesita "+Math.round(MIN_COVER*100)+"%. Repasa la guía completa.";
+  } else if(s.cover >= minNet && fuera > 25){
+    msg = "Cubriste el "+cover+"%, pero el "+fuera+"% de tu tinta quedó fuera de la letra: neto "+
+          netoP+"% y se necesita "+Math.round(minNet*100)+"%. Menos rayones, más línea 😉";
     cls = "feedback no";
   } else {
-    msg = "Te saliste bastante de la guía (solo el "+inside+"% de tu trazo cayó encima). Ve más despacio.";
+    msg = (guideVisible ? "Te faltó letra: forma "+netoP+"% y se necesita "+Math.round(minNet*100)+"%. Repasa la guía completa."
+                        : "Aún no se parece lo suficiente: forma "+netoP+"% y se necesita "+Math.round(minNet*100)+"%. Compara tu trazo con la guía que apareció.");
     cls = "feedback no";
   }
+
+  if(!guideVisible){
+    // Revela la guía debajo de tu dibujo para que compares
+    drawGuide();
+    redrawInk();
+    if(formaOk && trazosOk && !pracScored){
+      pracScored = true;
+      addXp(XP_REVIEW);
+      msg += " · +"+XP_REVIEW+" XP";
+    }
+  }
+
   fb.textContent = msg;
   fb.className = cls;
 
-  if(state.strict) setNextEnabled(formaOk && trazosOk);
+  if(state.strict && guideVisible) setNextEnabled(formaOk && trazosOk);
 }
 
 function toggleStrict(){
@@ -925,15 +1016,20 @@ const HIRA_SET = new Set(HIRAGANA_BASE.concat(HIRAGANA_DAKUTEN, HIRAGANA_COMBO).
 
 function startReview(){
   const ids = shuffle(dueItems()).slice(0,20);
+  // Distractores solo entre lo YA aprendido: si aparecen símbolos que nunca
+  // has visto, la respuesta se adivina por descarte y el repaso no sirve.
+  const learnedW = WORD_ALL.filter(w=> state.srs[w[0]]);
+  const wordPool = learnedW.length >= 4 ? learnedW : WORD_ALL;
   let qs = ids.map(id=>{
     const it = state.srs[id];
     const dir = Math.random()<0.5 ? 0 : 1;
     if(it.t==="k"){
       const k = KANA_MAP[id];
-      const sameScript = KANA_ALL.filter(x=> HIRA_SET.has(x[0]) === HIRA_SET.has(id));
-      return makeKanaQuestion(k, dir, sameScript);
+      const same = KANA_ALL.filter(x=> HIRA_SET.has(x[0]) === HIRA_SET.has(id));
+      const learned = same.filter(x=> state.srs[x[0]]);
+      return makeKanaQuestion(k, dir, learned.length >= 5 ? learned : same);
     } else {
-      return makeWordQuestion(WORD_MAP[id], dir, WORD_ALL);
+      return makeWordQuestion(WORD_MAP[id], dir, wordPool);
     }
   });
   quiz = {questions:qs, i:0, correct:0, mode:"review", again:[]};
@@ -1099,6 +1195,64 @@ function renderChart(tab){
   window.scrollTo(0,0);
 }
 
+/* ================= PANTALLA: PRÁCTICA DE ESCRITURA ================= */
+
+let prac = {idx:0, guide:true};
+
+function learnedKanaList(){
+  return KANA_ALL.filter(k=> state.srs[k[0]]).map(k=>k[0]);
+}
+
+function renderPractice(){
+  const list = learnedKanaList();
+  if(!list.length){ renderHome(); return; }
+  if(prac.idx >= list.length) prac.idx = 0;
+  const ch = list[prac.idx];
+  const k = KANA_MAP[ch];
+  const script = HIRA_SET.has(ch) ? "hiragana" : "katakana";
+
+  let html = topnav("Práctica de escritura");
+  html += '<div class="tabs">'+
+    '<div class="tab '+(prac.guide?"on":"")+'" onclick="pracGuide(true)">Con guía</div>'+
+    '<div class="tab '+(!prac.guide?"on":"")+'" onclick="pracGuide(false)">De memoria 🧠</div></div>';
+
+  html += '<div class="card center">'+
+    '<div class="muted">Escribe en '+script+':</div>'+
+    '<div class="romaji-hero" style="font-size:34px">'+esc(k[1])+'</div>'+
+    (prac.guide
+      ? ''
+      : '<div class="muted" style="font-size:13px">Sin guía: el tamaño y la posición no importan, la forma sí. Acierta y ganas +'+XP_REVIEW+' XP.</div>')+
+    '<canvas class="trace" id="trace" width="'+CANVAS_PX+'" height="'+CANVAS_PX+'"></canvas>'+
+    '<div class="center" id="strokeCount" style="font-size:15px; color:var(--sub)"></div>'+
+    '<div style="display:flex; gap:8px; margin-top:10px">'+
+      '<button class="btn sec" style="flex:1" onclick="clearTrace()">Borrar</button>'+
+      '<button class="btn" style="flex:1" onclick="checkTrace()">Revisar ✓</button>'+
+    '</div>'+
+    '<div class="feedback" id="traceFb" style="font-size:15px"></div>'+
+    '</div>';
+
+  html += '<div style="display:flex; gap:10px">'+
+    '<button class="btn sec" style="flex:1" onclick="pracNav(-1)">←</button>'+
+    '<button class="btn sec" style="flex:1" onclick="pracRandom()">🎲 Azar</button>'+
+    '<button class="btn sec" style="flex:1" onclick="pracNav(1)">→</button></div>';
+  html += '<p class="center muted">'+(prac.idx+1)+' de '+list.length+' símbolos aprendidos</p>';
+
+  app.innerHTML = html;
+  window.scrollTo(0,0);
+  initTrace(ch, prac.guide);
+}
+function pracGuide(g){ prac.guide = g; renderPractice(); }
+function pracNav(d){
+  const n = learnedKanaList().length;
+  prac.idx = (prac.idx + d + n) % n;
+  renderPractice();
+}
+function pracRandom(){
+  const n = learnedKanaList().length;
+  prac.idx = Math.floor(Math.random()*n);
+  renderPractice();
+}
+
 /* ================= PANTALLA: AYUDA / RESPALDO ================= */
 
 function renderAbout(){
@@ -1114,7 +1268,9 @@ function renderAbout(){
     '<b>📬 Los repasos</b>'+
     '<p>Cada símbolo que apruebas entra a un sistema de repaso espaciado: te lo pregunto hoy, mañana, a los 3 días, 7, 14, 30… Si fallas, vuelve al inicio. Así se pasa de "lo vi" a "me lo sé".</p>'+
     '<b>✍️ El trazado</b>'+
-    '<p>Traza cada símbolo y pulsa <b>«Revisar ✓»</b>. Se revisan dos cosas: que cubras al menos el <b>'+Math.round(MIN_COVER*100)+'%</b> de la letra sin salirte demasiado, y que uses el <b>número correcto de trazos</b> (los japoneses cuidan mucho esto).</p>'+
+    '<p>Traza cada símbolo y pulsa <b>«Revisar ✓»</b>. La calificación es <b>neta</b>: el porcentaje de la letra que cubriste <i>menos</i> lo que pintaste fuera de ella — rayonear todo el cuadro ya no cuenta. Se necesita <b>'+Math.round(MIN_NET*100)+'%</b> y el <b>número correcto de trazos</b> (los japoneses cuidan mucho esto).</p>'+
+    '<b>🧠 Práctica de escritura</b>'+
+    '<p>Repasa cualquier símbolo aprendido cuando quieras, con guía o <b>de memoria</b>: solo con el romaji como pista, dibuja donde y del tamaño que quieras — la app escala tu dibujo y lo compara con la forma real. Cada acierto de memoria da <b>+'+XP_REVIEW+' XP</b>, así que también cuenta para tu racha.</p>'+
     '<p class="muted">La revisión es generosa a propósito: busca el mejor encaje aunque empieces corrido de lugar, y tolera unos milímetros de error para que un lápiz de punta redonda no te perjudique. Normalmente te <i>informa</i> pero te deja avanzar; si activas <b>modo estricto</b>, tendrás que trazarlo bien para continuar.</p>'+
     '<p class="muted">Ojo: algunas tipografías dibujan き y さ con la parte de abajo pegada, pero a mano se escriben con 4 y 3 trazos.</p>'+
     '</div>';
