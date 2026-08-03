@@ -615,8 +615,12 @@ const TOL        = 3;     // tolerancia en píxeles de análisis (~7px reales)
                           // pero un garabato al azar se queda por debajo del 60%.
 const TOL_MEM    = 4;     // tolerancia al dibujar de memoria (algo más generosa)
 const SEARCH     = 10;    // busca el mejor encaje desplazando ±10 px de análisis
-const MIN_NET    = 0.60;  // calificación neta mínima con guía
-const MIN_NET_MEM= 0.55;  // calificación neta mínima de memoria
+const MIN_NET    = 0.75;  // calificación neta mínima con guía
+const MIN_NET_MEM= 0.70;  // de memoria: un poco menos, dibujar sin referencia
+                          // es más difícil y suele salir más chico y tembloroso.
+                          // Medido: 98% de los trazos legítimos aprueban y los
+                          // manchones sacan 0%, así que el umbral no los detiene
+                          // a ellos — de eso se encarga el castigo por tinta.
 
 /* Calificación neta = cobertura − OUT_W·(tinta fuera) − EXC_W·(tinta de más)
    Ambos castigos se miden EN PROPORCIÓN AL TAMAÑO DE LA LETRA, no a tu tinta:
@@ -781,15 +785,23 @@ function scoreStrokes(sts, tol){
   best.out = (1-best.inside)*inkCount/guideField.count; // tinta fuera ÷ letra
   return best;
 }
-// Los kana combinados (きゃ) se dibujan más chicos, así que sus trazos son más
-// delgados: se les da un píxel más de tolerancia para que no salgan castigados.
+/* Los kana combinados (きゃ) se dibujan a 130px en vez de 200px, así que sus
+   trazos son más delgados. Con un pincel de grosor fijo eso significa que
+   trazarlos gasta más tinta en proporción y que cada píxel de desvío pesa más,
+   así que ambos márgenes se escalan para que no salgan castigados: sin esto
+   los combinados sacaban 66-79% donde un kana normal saca 100%. */
+const COMBO_K = 200/130;
+function isCombo(){ return traceChar.length > 1; }
 function tolFor(mem){
   const base = mem ? TOL_MEM : TOL;
-  return traceChar.length > 1 ? base + 1 : base;
+  return isCombo() ? base + 1 : base;
+}
+function allowInkFor(){
+  return isCombo() ? ALLOW_INK*COMBO_K : ALLOW_INK;
 }
 function scoreTrace(){ return scoreStrokes(strokes, tolFor(false)); }
 function netScore(s){
-  return Math.max(0, s.cover - OUT_W*s.out - EXC_W*Math.max(0, s.ink - ALLOW_INK));
+  return Math.max(0, s.cover - OUT_W*s.out - EXC_W*Math.max(0, s.ink - allowInkFor()));
 }
 
 /* Para el modo «de memoria»: escala y centra tu dibujo a la caja de la
@@ -921,7 +933,7 @@ function checkTrace(){
   const netoP  = Math.round(neto*100);
   const cover  = Math.round(s.cover*100);
   const fuera  = Math.round(s.out*100);          // tinta fuera, ÷ tamaño de la letra
-  const exceso = Math.max(0, s.ink - ALLOW_INK);  // tinta de más
+  const exceso = Math.max(0, s.ink - allowInkFor());  // tinta de más
   const pierdeFuera  = OUT_W*s.out;
   const pierdeExceso = EXC_W*exceso;
   const minP = Math.round(minNet*100);
@@ -940,7 +952,7 @@ function checkTrace(){
   } else if(pierdeExceso >= pierdeFuera && exceso > 0){
     msg = "Rellenaste la letra en vez de trazar su línea: gastaste "+s.ink.toFixed(1)+
           " veces la tinta que tiene "+traceChar+". Neto "+netoP+"% y se necesita "+minP+
-          "%. Sigue la línea de en medio con un solo pasada 😉";
+          "%. Sigue la línea de en medio con una sola pasada 😉";
     cls = "feedback no";
   } else if(pierdeFuera > 0.15){
     msg = "Cubriste el "+cover+"%, pero te saliste bastante (tinta fuera: "+fuera+
