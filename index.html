@@ -617,11 +617,18 @@ const TOL_MEM    = 4;     // tolerancia al dibujar de memoria (algo más generos
 const SEARCH     = 10;    // busca el mejor encaje desplazando ±10 px de análisis
 const MIN_NET    = 0.60;  // calificación neta mínima con guía
 const MIN_NET_MEM= 0.55;  // calificación neta mínima de memoria
-const OUT_W      = 1.3;   // peso de la tinta que queda fuera de la letra
-                          // neto = cobertura − OUT_W·(fracción de tinta fuera)
-                          // Calibrado: con 1.0 el truco de «línea bien + rayones por
-                          // todos lados» aprobaba 3/126; con 1.3 aprueba 0/126 y el
-                          // trazo legítimo tembloroso sigue pasando 126/126 (peor: 85%).
+
+/* Calificación neta = cobertura − OUT_W·(tinta fuera) − EXC_W·(tinta de más)
+   Ambos castigos se miden EN PROPORCIÓN AL TAMAÑO DE LA LETRA, no a tu tinta:
+   así, entre más rayes, más caro sale. Calibrado sobre los 126 kana con trazos
+   simulados (trazo limpio, temblor suave, manchón, rayones):
+     · tinta de un trazo real ....... 0.62 – 0.90 veces la letra
+     · tinta de un manchón .......... 1.89 – 2.30 veces la letra
+   Con estos valores: 126/126 trazos legítimos aprueban (peor caso 81%) y
+   0/126 manchones o rayoneos aprueban. */
+const OUT_W      = 2.0;   // peso de la tinta que cae fuera de la letra
+const ALLOW_INK  = 1.25;  // tinta «gratis»: hasta 1.25 veces el tamaño de la letra
+const EXC_W      = 1.2;   // peso de la tinta que exceda ese margen
 
 let traceCtx = null, traceChar = "", drawing = false;
 let strokes = [];         // [[{x,y},...], ...] un arreglo por trazo
@@ -769,9 +776,21 @@ function scoreStrokes(sts, tol){
       if(cover + ins > best.sum) best = {cover:cover, inside:ins, sum:cover+ins};
     }
   }
+  // Relativos al tamaño de la letra (no a tu tinta): rayar de más sale caro.
+  best.ink = inkCount/guideField.count;                 // tinta usada ÷ letra
+  best.out = (1-best.inside)*inkCount/guideField.count; // tinta fuera ÷ letra
   return best;
 }
-function scoreTrace(){ return scoreStrokes(strokes, TOL); }
+// Los kana combinados (きゃ) se dibujan más chicos, así que sus trazos son más
+// delgados: se les da un píxel más de tolerancia para que no salgan castigados.
+function tolFor(mem){
+  const base = mem ? TOL_MEM : TOL;
+  return traceChar.length > 1 ? base + 1 : base;
+}
+function scoreTrace(){ return scoreStrokes(strokes, tolFor(false)); }
+function netScore(s){
+  return Math.max(0, s.cover - OUT_W*s.out - EXC_W*Math.max(0, s.ink - ALLOW_INK));
+}
 
 /* Para el modo «de memoria»: escala y centra tu dibujo a la caja de la
    letra real, para que el tamaño y la posición no importen — solo la forma. */
@@ -893,16 +912,19 @@ function checkTrace(){
   } else {
     const n = normalizeInk();
     if(n.err){ fb.textContent = n.err; fb.className = "feedback no"; return; }
-    s = scoreStrokes(n.strokes, TOL_MEM);
+    s = scoreStrokes(n.strokes, tolFor(true));
     minNet = MIN_NET_MEM;
   }
   if(!s){ fb.textContent = "No pude leer el trazo, inténtalo de nuevo."; fb.className="feedback no"; return; }
 
-  // Calificación neta: lo que cubriste de la letra MENOS lo que pintaste fuera.
-  const neto  = Math.max(0, s.cover - OUT_W*(1 - s.inside));
-  const netoP = Math.round(neto*100);
-  const cover = Math.round(s.cover*100);
-  const fuera = Math.round((1 - s.inside)*100);
+  const neto   = netScore(s);
+  const netoP  = Math.round(neto*100);
+  const cover  = Math.round(s.cover*100);
+  const fuera  = Math.round(s.out*100);          // tinta fuera, ÷ tamaño de la letra
+  const exceso = Math.max(0, s.ink - ALLOW_INK);  // tinta de más
+  const pierdeFuera  = OUT_W*s.out;
+  const pierdeExceso = EXC_W*exceso;
+  const minP = Math.round(minNet*100);
   const formaOk  = neto >= minNet;
   const trazosOk = (need === null) || (have === need);
 
@@ -915,13 +937,18 @@ function checkTrace(){
     msg = "La forma quedó bien ("+netoP+"%), pero "+traceChar+" se escribe con "+need+
           " trazo"+(need===1?"":"s")+" y tú hiciste "+have+". Levanta el lápiz entre trazo y trazo.";
     cls = "feedback no";
-  } else if(s.cover >= minNet && fuera > 25){
-    msg = "Cubriste el "+cover+"%, pero el "+fuera+"% de tu tinta quedó fuera de la letra: neto "+
-          netoP+"% y se necesita "+Math.round(minNet*100)+"%. Menos rayones, más línea 😉";
+  } else if(pierdeExceso >= pierdeFuera && exceso > 0){
+    msg = "Rellenaste la letra en vez de trazar su línea: gastaste "+s.ink.toFixed(1)+
+          " veces la tinta que tiene "+traceChar+". Neto "+netoP+"% y se necesita "+minP+
+          "%. Sigue la línea de en medio con un solo pasada 😉";
+    cls = "feedback no";
+  } else if(pierdeFuera > 0.15){
+    msg = "Cubriste el "+cover+"%, pero te saliste bastante (tinta fuera: "+fuera+
+          "% del tamaño de la letra): neto "+netoP+"% y se necesita "+minP+"%. Menos rayones, más línea.";
     cls = "feedback no";
   } else {
-    msg = (guideVisible ? "Te faltó letra: forma "+netoP+"% y se necesita "+Math.round(minNet*100)+"%. Repasa la guía completa."
-                        : "Aún no se parece lo suficiente: forma "+netoP+"% y se necesita "+Math.round(minNet*100)+"%. Compara tu trazo con la guía que apareció.");
+    msg = (guideVisible ? "Te faltó letra: forma "+netoP+"% y se necesita "+minP+"%. Repasa la guía completa."
+                        : "Aún no se parece lo suficiente: forma "+netoP+"% y se necesita "+minP+"%. Compara tu trazo con la guía que apareció.");
     cls = "feedback no";
   }
 
@@ -1268,7 +1295,7 @@ function renderAbout(){
     '<b>📬 Los repasos</b>'+
     '<p>Cada símbolo que apruebas entra a un sistema de repaso espaciado: te lo pregunto hoy, mañana, a los 3 días, 7, 14, 30… Si fallas, vuelve al inicio. Así se pasa de "lo vi" a "me lo sé".</p>'+
     '<b>✍️ El trazado</b>'+
-    '<p>Traza cada símbolo y pulsa <b>«Revisar ✓»</b>. La calificación es <b>neta</b>: el porcentaje de la letra que cubriste <i>menos</i> lo que pintaste fuera de ella — rayonear todo el cuadro ya no cuenta. Se necesita <b>'+Math.round(MIN_NET*100)+'%</b> y el <b>número correcto de trazos</b> (los japoneses cuidan mucho esto).</p>'+
+    '<p>Traza cada símbolo y pulsa <b>«Revisar ✓»</b>. La calificación es <b>neta</b>: lo que cubriste de la letra <i>menos</i> la tinta que quedó fuera <i>menos</i> la tinta de más si rellenaste en vez de trazar. Ambos castigos se miden contra el tamaño del carácter, así que entre más rayes más caro sale. Se necesita <b>'+Math.round(MIN_NET*100)+'%</b> y el <b>número correcto de trazos</b> (los japoneses cuidan mucho esto).</p>'+
     '<b>🧠 Práctica de escritura</b>'+
     '<p>Repasa cualquier símbolo aprendido cuando quieras, con guía o <b>de memoria</b>: solo con el romaji como pista, dibuja donde y del tamaño que quieras — la app escala tu dibujo y lo compara con la forma real. Cada acierto de memoria da <b>+'+XP_REVIEW+' XP</b>, así que también cuenta para tu racha.</p>'+
     '<p class="muted">La revisión es generosa a propósito: busca el mejor encaje aunque empieces corrido de lugar, y tolera unos milímetros de error para que un lápiz de punta redonda no te perjudique. Normalmente te <i>informa</i> pero te deja avanzar; si activas <b>modo estricto</b>, tendrás que trazarlo bien para continuar.</p>'+
