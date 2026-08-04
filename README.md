@@ -25,11 +25,12 @@ App web de un solo archivo para aprender japonés: hiragana, katakana y vocabula
 - **Racha diaria**: 20 XP al día — una lección o ~10 repasos correctos, unos 5 minutos.
 
 ## Instalar en el teléfono o la tablet
-
+  **NOTA: Se recomienda usar lapiz para mejorar el aprendizaje**
 Abre el link y añade la página a la pantalla de inicio:
 
 - **Android / Chrome** — menú ⋮ → *Añadir a pantalla de inicio*
 - **iPad / iPhone / Safari** — botón compartir → *Añadir a inicio*
+
 
 Queda con su ícono あ y abre a pantalla completa, como una app normal. Después de la primera visita funciona sin internet.
 
